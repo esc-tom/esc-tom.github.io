@@ -1,3 +1,36 @@
+// ========== FIREBASE CONFIGURATION ==========
+// Firebase configuration for cloud storage
+const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDMdDN31UcSnoUHM-u9O4c0rXqmVBxWsh0",
+    authDomain: "esc-tom.firebaseapp.com",
+    projectId: "esc-tom",
+    storageBucket: "esc-tom.firebasestorage.app",
+    messagingSenderId: "968824960752",
+    appId: "1:968824960752:web:ab6bb791e86ed2bdda3435",
+    measurementId: "G-W75L4XKYZ6"
+};
+
+let firebaseStorage = null;
+let firebaseReady = false;
+
+async function initFirebaseStorage() {
+    if (firebaseReady) return true;
+    
+    firebaseStorage = window.firebaseStorage;
+    const success = await firebaseStorage.init(FIREBASE_CONFIG);
+    
+    if (success) {
+        firebaseReady = true;
+        console.log('✅ Firebase ready');
+    } else {
+        console.error('❌ Firebase initialization failed');
+    }
+    
+    return success;
+}
+// ========== END FIREBASE CONFIGURATION ==========
+
+
 // Global state
 let currentUsername = null; // Current logged-in user
 let allDialogues = [];
@@ -107,15 +140,19 @@ async function initializeApp() {
     }
 }
 
-// Load existing users from localStorage
+// Load existing users from Firebase
 async function loadUsers() {
     try {
-        const usersJson = localStorage.getItem(STORAGE_KEYS.USERS);
-        const users = usersJson ? JSON.parse(usersJson) : [];
+        if (!firebaseReady) {
+            await initFirebaseStorage();
+        }
+
+        const users = await firebaseStorage.getAllUsers();
         displayUsers(users);
     } catch (error) {
         console.error('Error loading users:', error);
-        document.getElementById('user-list').innerHTML = '<p class="error-text">Error loading users</p>';
+        document.getElementById('user-list').innerHTML = 
+            '<p class="error-text">Error loading users from Firebase</p>';
     }
 }
 
@@ -185,17 +222,27 @@ async function loadCognitiveDimensions() {
 let annotationStatus = {};
 
 async function checkAnnotationProgress() {
+    if (!firebaseReady) {
+        await initFirebaseStorage();
+    }
+
     let annotatedCount = 0;
     
-    for (let i = 0; i < allDialogues.length; i++) {
-        const dialogue = allDialogues[i];
-        const annotation = getAnnotationFromStorage(dialogue.entry_id);
-        if (annotation) {
-            annotationStatus[dialogue.entry_id] = true;
-            annotatedCount++;
-        } else {
-            annotationStatus[dialogue.entry_id] = false;
+    try {
+        const annotatedDialogues = await firebaseStorage.getUserAnnotations();
+        
+        for (let i = 0; i < allDialogues.length; i++) {
+            const dialogue = allDialogues[i];
+            const isAnnotated = annotatedDialogues.includes(dialogue.entry_id);
+            annotationStatus[dialogue.entry_id] = isAnnotated;
+            if (isAnnotated) {
+                annotatedCount++;
+            }
         }
+        
+        console.log(`📊 Progress: ${annotatedCount}/${allDialogues.length} dialogues annotated`);
+    } catch (error) {
+        console.error('Error checking progress:', error);
     }
     
     updateProgressBar(annotatedCount, allDialogues.length);
@@ -554,21 +601,39 @@ function updateDialogueInfo() {
 }
 
 // LocalStorage helper functions
-function getAnnotationFromStorage(entryId) {
-    const key = `${STORAGE_KEYS.ANNOTATIONS_PREFIX}${currentUsername}_${entryId}`;
-    const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : null;
+async function getAnnotationFromStorage(entryId) {
+    if (!firebaseReady) {
+        await initFirebaseStorage();
+    }
+
+    try {
+        const annotation = await firebaseStorage.loadAnnotation(currentUsername, entryId);
+        return annotation;
+    } catch (error) {
+        console.error('Error loading annotation:', error);
+        return null;
+    }
 }
 
-function saveAnnotationToStorage(entryId, annotation) {
-    const key = `${STORAGE_KEYS.ANNOTATIONS_PREFIX}${currentUsername}_${entryId}`;
-    localStorage.setItem(key, JSON.stringify(annotation));
+async function saveAnnotationToStorage(entryId, annotation) {
+    if (!firebaseReady) {
+        await initFirebaseStorage();
+    }
+
+    try {
+        await firebaseStorage.saveAnnotation(currentUsername, entryId, annotation);
+        console.log(`✅ Saved to Firebase: ${entryId}`);
+        return true;
+    } catch (error) {
+        console.error('Error saving annotation:', error);
+        throw error;
+    }
 }
 
 // Load existing annotation if available
 async function loadExistingAnnotation() {
     try {
-        const annotation = getAnnotationFromStorage(currentDialogue.entry_id);
+        const annotation = await getAnnotationFromStorage(currentDialogue.entry_id);
         
         if (annotation) {
             // Populate form fields (strip prefixes when loading)
@@ -1094,8 +1159,8 @@ async function performSave() {
     };
     
     try {
-        // Save to localStorage
-        saveAnnotationToStorage(currentDialogue.entry_id, annotation);
+        // Save to Firebase
+        await saveAnnotationToStorage(currentDialogue.entry_id, annotation);
         
         showStatus('✅ Annotation saved successfully!', 'success');
         
@@ -1245,39 +1310,32 @@ async function handleLogin() {
     const username = document.getElementById('username-input').value.trim();
     const password = document.getElementById('password-input').value;
     
-    if (!username) {
-        showLoginError('Please enter a username');
-        return;
-    }
-    
-    if (!password) {
-        showLoginError('Please enter a password');
+    if (!username || !password) {
+        showLoginError('Please enter username and password');
         return;
     }
     
     try {
-        const usersJson = localStorage.getItem(STORAGE_KEYS.USERS);
-        const users = usersJson ? JSON.parse(usersJson) : [];
-        
-        if (!users.includes(username)) {
-            showLoginError('Username not found. Please register first.');
-            return;
+        if (!firebaseReady) {
+            await initFirebaseStorage();
         }
+
+        const result = await firebaseStorage.loginUser(username, password);
         
-        // Verify password
-        const isPasswordValid = await verifyPassword(username, password);
-        if (!isPasswordValid) {
-            showLoginError('Incorrect password. Please try again.');
+        if (!result.success) {
+            showLoginError(result.message);
             return;
         }
         
         currentUsername = username;
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, username);
+        
         hideLoginModal();
         await initializeApp();
+        showStatus(`Welcome back, ${username}!`, 'success');
     } catch (error) {
         console.error('Login error:', error);
-        showLoginError('Error logging in');
+        showLoginError('Error logging in: ' + error.message);
     }
 }
 
@@ -1286,36 +1344,8 @@ async function handleRegister() {
     const password = document.getElementById('password-input').value;
     const confirmPassword = document.getElementById('confirm-password-input').value;
     
-    if (!username) {
-        showLoginError('Please enter a username');
-        return;
-    }
-    
-    if (!password) {
-        showLoginError('Please enter a password');
-        return;
-    }
-    
-    // Validate username
-    if (username.length < 3) {
-        showLoginError('Username must be at least 3 characters');
-        return;
-    }
-    
-    if (username.length > 20) {
-        showLoginError('Username must be at most 20 characters');
-        return;
-    }
-    
-    // Only allow alphanumeric, underscore, and hyphen
-    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
-        showLoginError('Username can only contain letters, numbers, underscore, and hyphen');
-        return;
-    }
-    
-    // Validate password
-    if (password.length < 6) {
-        showLoginError('Password must be at least 6 characters');
+    if (!username || !password) {
+        showLoginError('Please enter username and password');
         return;
     }
     
@@ -1324,31 +1354,32 @@ async function handleRegister() {
         return;
     }
     
+    if (password.length < 6) {
+        showLoginError('Password must be at least 6 characters');
+        return;
+    }
+    
     try {
-        const usersJson = localStorage.getItem(STORAGE_KEYS.USERS);
-        const users = usersJson ? JSON.parse(usersJson) : [];
+        if (!firebaseReady) {
+            await initFirebaseStorage();
+        }
+
+        const result = await firebaseStorage.registerUser(username, password);
         
-        // Check if username already exists
-        if (users.includes(username)) {
-            showLoginError('Username already exists');
+        if (!result.success) {
+            showLoginError(result.message);
             return;
         }
         
-        // Store password hash
-        await storePasswordHash(username, password);
-        
-        // Add new user
-        users.push(username);
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
-        
         currentUsername = username;
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, username);
+        
         hideLoginModal();
         await initializeApp();
         showStatus(`Welcome, ${username}! Registration successful.`, 'success');
     } catch (error) {
         console.error('Registration error:', error);
-        showLoginError('Error registering user');
+        showLoginError('Error registering user: ' + error.message);
     }
 }
 
@@ -1375,12 +1406,21 @@ function updateUserBadge() {
 }
 
 function handleLogout() {
-    if (confirm('Are you sure you want to logout? Your annotations are saved locally.')) {
+    if (confirm('Are you sure you want to logout?')) {
+        if (firebaseStorage) {
+            firebaseStorage.logout();
+        }
+        
         localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+        currentUsername = null;
         location.reload();
     }
 }
 
 // Initialize when page loads
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('🚀 App starting...');
+    await initFirebaseStorage();
+    init();
+});
 

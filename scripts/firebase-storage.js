@@ -1,0 +1,399 @@
+/**
+ * Firebase Storage Client for Annotation Tool
+ * 
+ * Simple cloud storage using Firebase Firestore and Authentication
+ * Much simpler than GitHub API - no tokens needed!
+ */
+
+class FirebaseStorage {
+    constructor() {
+        this.db = null;
+        this.auth = null;
+        this.currentUser = null;
+        this.initialized = false;
+    }
+
+    /**
+     * Initialize Firebase with your config
+     * @param {Object} config - Firebase configuration object
+     * @returns {Promise<boolean>}
+     */
+    async init(config) {
+        try {
+            // Initialize Firebase (only once)
+            if (!firebase.apps.length) {
+                firebase.initializeApp(config);
+            }
+            
+            this.db = firebase.firestore();
+            this.auth = firebase.auth();
+            
+            // Listen for authentication state changes
+            this.auth.onAuthStateChanged((user) => {
+                this.currentUser = user;
+                if (user) {
+                    console.log('🔐 User authenticated:', user.email);
+                } else {
+                    console.log('🔓 User logged out');
+                }
+            });
+            
+            this.initialized = true;
+            console.log('✅ Firebase initialized successfully');
+            return true;
+        } catch (error) {
+            console.error('❌ Firebase initialization failed:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Register new user with username and password
+     * Creates email from username for Firebase Auth
+     * @param {string} username - User's chosen username
+     * @param {string} password - User's password (min 6 chars)
+     * @returns {Promise<Object>} - {success, uid, message}
+     */
+    async registerUser(username, password) {
+        try {
+            // Create email from username (Firebase Auth requires email)
+            // Format: username@annotation.local
+            const email = `${username}@annotation.local`;
+            
+            // Create user account with Firebase Auth
+            const userCredential = await this.auth.createUserWithEmailAndPassword(email, password);
+            this.currentUser = userCredential.user;
+            
+            // Store user profile in Firestore
+            await this.db.collection('users').doc(this.currentUser.uid).set({
+                username: username,
+                email: email,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            console.log('✅ User registered:', username);
+            return { 
+                success: true, 
+                uid: this.currentUser.uid,
+                username: username
+            };
+        } catch (error) {
+            console.error('❌ Registration error:', error);
+            
+            // Handle specific Firebase Auth errors
+            if (error.code === 'auth/email-already-in-use') {
+                return { success: false, message: 'Username already exists' };
+            } else if (error.code === 'auth/weak-password') {
+                return { success: false, message: 'Password should be at least 6 characters' };
+            } else if (error.code === 'auth/invalid-email') {
+                return { success: false, message: 'Invalid username format' };
+            }
+            
+            return { success: false, message: error.message };
+        }
+    }
+
+    /**
+     * Login existing user
+     * @param {string} username - User's username
+     * @param {string} password - User's password
+     * @returns {Promise<Object>} - {success, uid, message}
+     */
+    async loginUser(username, password) {
+        try {
+            const email = `${username}@annotation.local`;
+            
+            // Sign in with Firebase Auth
+            const userCredential = await this.auth.signInWithEmailAndPassword(email, password);
+            this.currentUser = userCredential.user;
+            
+            console.log('✅ User logged in:', username);
+            return { 
+                success: true, 
+                uid: this.currentUser.uid,
+                username: username
+            };
+        } catch (error) {
+            console.error('❌ Login error:', error);
+            
+            // Handle specific errors
+            if (error.code === 'auth/user-not-found') {
+                return { success: false, message: 'Username not found. Please register first.' };
+            } else if (error.code === 'auth/wrong-password') {
+                return { success: false, message: 'Incorrect password' };
+            } else if (error.code === 'auth/invalid-email') {
+                return { success: false, message: 'Invalid username format' };
+            }
+            
+            return { success: false, message: error.message };
+        }
+    }
+
+    /**
+     * Logout current user
+     * @returns {Promise<void>}
+     */
+    async logout() {
+        try {
+            await this.auth.signOut();
+            this.currentUser = null;
+            console.log('✅ User logged out');
+        } catch (error) {
+            console.error('Error logging out:', error);
+        }
+    }
+
+    /**
+     * Get all usernames (for display in login modal)
+     * @returns {Promise<string[]>} - Array of usernames
+     */
+    async getAllUsers() {
+        try {
+            const snapshot = await this.db.collection('users').get();
+            const users = [];
+            
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.username) {
+                    users.push(data.username);
+                }
+            });
+            
+            console.log(`📋 Found ${users.length} registered users`);
+            return users.sort(); // Alphabetical order
+        } catch (error) {
+            console.error('Error loading users:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Save annotation to Firestore
+     * @param {string} username - Current username
+     * @param {string} dialogueId - Dialogue ID
+     * @param {Object} annotation - Annotation data
+     * @returns {Promise<boolean>}
+     */
+    async saveAnnotation(username, dialogueId, annotation) {
+        if (!this.currentUser) {
+            throw new Error('User not authenticated. Please login first.');
+        }
+
+        try {
+            // Document ID format: userId_dialogueId
+            const docId = `${this.currentUser.uid}_${dialogueId}`;
+            
+            // Save to Firestore
+            await this.db.collection('annotations').doc(docId).set({
+                userId: this.currentUser.uid,
+                username: username,
+                dialogueId: dialogueId,
+                ...annotation,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true }); // merge: true allows updates
+            
+            console.log(`✅ Saved annotation: ${username}/${dialogueId}`);
+            return true;
+        } catch (error) {
+            console.error('Error saving annotation:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Load annotation from Firestore
+     * @param {string} username - Current username
+     * @param {string} dialogueId - Dialogue ID
+     * @returns {Promise<Object|null>} - Annotation data or null
+     */
+    async loadAnnotation(username, dialogueId) {
+        if (!this.currentUser) {
+            console.warn('User not authenticated');
+            return null;
+        }
+
+        try {
+            const docId = `${this.currentUser.uid}_${dialogueId}`;
+            const doc = await this.db.collection('annotations').doc(docId).get();
+            
+            if (doc.exists) {
+                console.log(`✅ Loaded annotation: ${dialogueId}`);
+                return doc.data();
+            }
+            
+            console.log(`📄 No annotation found for: ${dialogueId}`);
+            return null;
+        } catch (error) {
+            console.error('Error loading annotation:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Get list of all annotated dialogue IDs for current user
+     * @returns {Promise<string[]>} - Array of dialogue IDs
+     */
+    async getUserAnnotations() {
+        if (!this.currentUser) {
+            console.warn('User not authenticated');
+            return [];
+        }
+
+        try {
+            const snapshot = await this.db.collection('annotations')
+                .where('userId', '==', this.currentUser.uid)
+                .get();
+            
+            const dialogueIds = [];
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.dialogueId) {
+                    dialogueIds.push(data.dialogueId);
+                }
+            });
+            
+            console.log(`📊 Found ${dialogueIds.length} annotations for current user`);
+            return dialogueIds;
+        } catch (error) {
+            console.error('Error getting user annotations:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Check if annotation exists
+     * @param {string} username - Username
+     * @param {string} dialogueId - Dialogue ID
+     * @returns {Promise<boolean>}
+     */
+    async annotationExists(username, dialogueId) {
+        if (!this.currentUser) {
+            return false;
+        }
+
+        try {
+            const docId = `${this.currentUser.uid}_${dialogueId}`;
+            const doc = await this.db.collection('annotations').doc(docId).get();
+            return doc.exists;
+        } catch (error) {
+            console.error('Error checking annotation:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get current username from Firestore
+     * @returns {Promise<string|null>}
+     */
+    async getCurrentUsername() {
+        if (!this.currentUser) {
+            return null;
+        }
+
+        try {
+            const doc = await this.db.collection('users').doc(this.currentUser.uid).get();
+            if (doc.exists) {
+                return doc.data().username;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error getting username:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Delete annotation (optional - for cleanup)
+     * @param {string} username - Username
+     * @param {string} dialogueId - Dialogue ID
+     * @returns {Promise<boolean>}
+     */
+    async deleteAnnotation(username, dialogueId) {
+        if (!this.currentUser) {
+            throw new Error('User not authenticated');
+        }
+
+        try {
+            const docId = `${this.currentUser.uid}_${dialogueId}`;
+            await this.db.collection('annotations').doc(docId).delete();
+            
+            console.log(`🗑️ Deleted annotation: ${dialogueId}`);
+            return true;
+        } catch (error) {
+            console.error('Error deleting annotation:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get all annotations (admin function)
+     * @returns {Promise<Array>} - All annotations
+     */
+    async getAllAnnotations() {
+        if (!this.currentUser) {
+            throw new Error('User not authenticated');
+        }
+
+        try {
+            const snapshot = await this.db.collection('annotations').get();
+            const annotations = [];
+            
+            snapshot.forEach(doc => {
+                annotations.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            });
+            
+            console.log(`📊 Retrieved ${annotations.length} total annotations`);
+            return annotations;
+        } catch (error) {
+            console.error('Error getting all annotations:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Export current user's data as JSON
+     * @returns {Promise<Object>} - User data and annotations
+     */
+    async exportUserData() {
+        if (!this.currentUser) {
+            throw new Error('User not authenticated');
+        }
+
+        try {
+            // Get user profile
+            const userDoc = await this.db.collection('users').doc(this.currentUser.uid).get();
+            const userData = userDoc.data();
+
+            // Get all annotations
+            const annotationsSnapshot = await this.db.collection('annotations')
+                .where('userId', '==', this.currentUser.uid)
+                .get();
+            
+            const annotations = {};
+            annotationsSnapshot.forEach(doc => {
+                const data = doc.data();
+                annotations[data.dialogueId] = data;
+            });
+
+            return {
+                user: userData,
+                annotations: annotations,
+                exportDate: new Date().toISOString()
+            };
+        } catch (error) {
+            console.error('Error exporting data:', error);
+            throw error;
+        }
+    }
+}
+
+// Create and export global instance
+if (typeof window !== 'undefined') {
+    window.FirebaseStorage = FirebaseStorage;
+    window.firebaseStorage = new FirebaseStorage();
+    console.log('🔥 Firebase Storage client loaded');
+}
+

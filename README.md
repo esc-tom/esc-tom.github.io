@@ -8,14 +8,15 @@ Visit the live tool at: `https://[your-username].github.io/`
 
 ## Features
 
-- **User Management**: Register and login with username/password (password-protected, stored locally with SHA-256 hashing)
+- **User Management**: Register and login with username/password (Firebase Authentication)
 - **Dialogue Annotation**: View and annotate therapeutic dialogues
 - **Persona Profiles**: Display patient information including Big Five personality traits
 - **BDI Annotations**: Annotate beliefs, desires, and intentions
 - **Cognitive Appraisals**: Select and rank up to 5 cognitive appraisal dimensions with intensity scores
 - **Progress Tracking**: Track annotation progress across all dialogues
-- **Local Storage**: All annotations saved in browser's localStorage
+- **Cloud Storage**: All annotations saved in Firebase Firestore (automatic backup, real-time sync)
 - **Drag & Drop**: Reorder appraisals by importance
+- **Multi-Device**: Access your annotations from any device
 
 ## Quick Start
 
@@ -39,10 +40,13 @@ Visit the live tool at: `https://[your-username].github.io/`
 ├── styles/
 │   └── style.css          # Styling
 ├── scripts/
-│   └── script.js          # Application logic
+│   ├── script.js          # Application logic
+│   └── firebase-storage.js  # Firebase cloud storage client
 ├── data/
 │   ├── dialogues.json     # Dialogue data
 │   └── cognitive_dimensions.json  # Cognitive appraisal definitions
+├── FIREBASE_SETUP.md      # Complete Firebase setup guide
+├── FIREBASE_QUICKSTART.md # Quick 15-minute setup
 └── README.md              # This file
 ```
 
@@ -104,16 +108,32 @@ Edit `data/cognitive_dimensions.json` to modify the cognitive appraisal options:
 
 ## Data Storage
 
-### Local Storage Keys
+### Firebase Cloud Storage
 
-All data is stored in the browser's localStorage:
+All data is stored in **Firebase Firestore** (cloud database):
 
-- `annotation_users`: Array of registered usernames
-- `annotation_passwords`: Password hashes (SHA-256) for each user
-- `annotation_username`: Currently logged-in user
-- `annotation_data_{username}_{dialogue_id}`: Individual annotations
+#### Collections:
 
-**Security Note**: Passwords are hashed using SHA-256 with username as salt before storage. Plain-text passwords are never stored.
+**`users` collection**:
+- User profiles (username, email, creation date)
+- Indexed by Firebase Auth UID
+
+**`annotations` collection**:
+- Individual annotations for each dialogue
+- Document ID format: `{userId}_{dialogueId}`
+- Includes user metadata and timestamps
+
+**Security**: 
+- Firebase Authentication handles user login
+- Passwords managed securely by Firebase (never stored in plain text)
+- Firestore Security Rules restrict users to their own data
+- All communication encrypted (HTTPS)
+
+### Setup Firebase
+
+See **[FIREBASE_QUICKSTART.md](FIREBASE_QUICKSTART.md)** for 15-minute setup guide.
+
+For detailed instructions, see **[FIREBASE_SETUP.md](FIREBASE_SETUP.md)**.
 
 ### Annotation Data Format
 
@@ -142,26 +162,36 @@ Each saved annotation includes:
 
 ## Exporting Annotations
 
-To export annotation data:
+### Method 1: Firebase Console (Easy)
+
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Select your project
+3. Click **Firestore Database**
+4. Select `annotations` collection
+5. Click **Export** (top right)
+6. Download as JSON
+
+### Method 2: Browser Console (For Current User)
 
 1. Open browser Developer Console (F12)
 2. Run this JavaScript:
 
 ```javascript
-// Export all annotations for current user
-const username = localStorage.getItem('annotation_username');
-const annotations = {};
-for (let i = 0; i < localStorage.length; i++) {
-  const key = localStorage.key(i);
-  if (key.startsWith(`annotation_data_${username}_`)) {
-    const dialogueId = key.replace(`annotation_data_${username}_`, '');
-    annotations[dialogueId] = JSON.parse(localStorage.getItem(key));
-  }
-}
-console.log(JSON.stringify(annotations, null, 2));
+// Export current user's annotations
+const data = await window.firebaseStorage.exportUserData();
+console.log(JSON.stringify(data, null, 2));
+// Right-click → Copy → Paste into text editor → Save as JSON
 ```
 
-3. Copy the JSON output
+### Method 3: Export All Annotations (Admin)
+
+```javascript
+// In browser console
+const snapshot = await firebase.firestore().collection('annotations').get();
+const annotations = [];
+snapshot.forEach(doc => annotations.push(doc.data()));
+console.log(JSON.stringify(annotations, null, 2));
+```
 
 ## Browser Compatibility
 
@@ -172,27 +202,34 @@ console.log(JSON.stringify(annotations, null, 2));
 
 ## Limitations
 
-- Data is stored locally in browser (not synced across devices)
-- Clearing browser data will delete annotations
-- No server-side backup (consider regular exports)
-- Large datasets may impact performance
+- Requires internet connection for Firebase sync
+- Firebase free tier limits:
+  - 1 GB storage
+  - 50,000 reads/day
+  - 20,000 writes/day
+  - (More than enough for typical research use)
+- Large dialogues may impact initial load time
 
 ## Privacy & Security
 
-- All data stays in the user's browser
-- No server communication after initial page load
-- No tracking or analytics
-- Suitable for sensitive research data
+- Firebase Authentication for secure login
+- Firestore Security Rules protect user data
+- Users can only access their own annotations
+- All communication encrypted (HTTPS)
+- Google Cloud infrastructure (GDPR compliant)
+- No third-party tracking or analytics
+- Suitable for sensitive research data (configure Firebase for your institution)
 
 ## Development
 
 ### Running Locally
 
 1. Clone the repository
-2. Open `index.html` in a web browser
-3. Or use a local server:
+2. **Set up Firebase** (see [FIREBASE_QUICKSTART.md](FIREBASE_QUICKSTART.md))
+3. Add your Firebase config to `scripts/script.js`
+4. Start local server:
    ```bash
-   python -m http.server 8000
+   python3 -m http.server 8000
    # Visit http://localhost:8000
    ```
 
@@ -209,14 +246,28 @@ console.log(JSON.stringify(annotations, null, 2));
 - Verify `data/dialogues.json` is valid JSON
 - Check file paths are correct
 
+**Issue**: Firebase initialization fails
+- Verify Firebase config is correct in `script.js`
+- Check Firebase CDN scripts are loaded in `index.html`
+- Check browser console for error messages
+- Verify Firestore database is enabled
+
 **Issue**: Annotations not saving
-- Check localStorage is enabled in browser
-- Check localStorage quota (typically 5-10MB)
-- Try clearing old data
+- Check internet connection
+- Verify Firebase Security Rules allow writes
+- Check browser console for permission errors
+- Try logging out and back in
 
 **Issue**: Login not working
-- Clear browser cache and localStorage
-- Check browser console for errors
+- Ensure password is at least 6 characters
+- Check Firebase Authentication is enabled
+- Check browser console for specific error messages
+- Verify user exists (try registering first)
+
+**Issue**: "Permission denied" errors
+- Check Firestore Security Rules in Firebase Console
+- Verify user is logged in
+- Check that rules allow authenticated users
 
 ## Citation
 

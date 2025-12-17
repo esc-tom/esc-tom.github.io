@@ -256,38 +256,14 @@
         </div>
     </div>
 
-    <!-- GitHub Token Setup Modal -->
-    <div id="github-token-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>🔑 GitHub API Setup</h3>
-            </div>
-            <div class="modal-body">
-                <p>This tool uses GitHub to store your annotations securely in the cloud.</p>
-                <p><strong>You need a GitHub Personal Access Token to continue.</strong></p>
-                
-                <div class="form-group">
-                    <label for="github-token-input">GitHub Token:</label>
-                    <input type="password" id="github-token-input" class="login-input" 
-                           placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">
-                    <p class="help-text">
-                        <strong>Don't have a token?</strong><br>
-                        1. Visit <a href="https://github.com/settings/tokens/new" target="_blank">GitHub Token Settings</a><br>
-                        2. Note: "Annotation Tool"<br>
-                        3. Scopes: Check "repo" only<br>
-                        4. Generate and copy your token
-                    </p>
-                </div>
-                
-                <div id="token-error" class="login-error hidden"></div>
-            </div>
-            <div class="modal-footer">
-                <button id="test-token-btn" class="btn btn-primary">Test & Save Token</button>
-            </div>
-        </div>
-    </div>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 
-    <script src="scripts/github-storage.js"></script>
+    <!-- Firebase storage client -->
+    <script src="scripts/firebase-storage.js"></script>
+
     <script src="scripts/script.js"></script>
 </body>
 </html>
