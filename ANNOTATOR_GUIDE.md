@@ -6,11 +6,14 @@
    - Open the URL provided by your research coordinator
    - Example: `https://username.github.io/repo-name`
 
-2. **Register Your Username**
+2. **Register Your Username and Password**
    - Enter a unique username (3-20 characters)
    - Use only letters, numbers, underscore (_), or hyphen (-)
+   - Enter a secure password (minimum 6 characters)
+   - Confirm your password by entering it again
    - Click "Register New User"
-   - Remember your username - you'll need it to log in later!
+   - **Remember both your username and password** - you'll need them to log in later!
+   - **Store your password securely** - it cannot be recovered if forgotten
 
 3. **Start Annotating**
    - Select a dialogue from the dropdown
@@ -128,10 +131,12 @@
 ## Managing Your Annotations
 
 ### Returning Later
-1. Open the tool and login with your username
+1. Open the tool and login with your username and password
 2. Your progress is saved in your browser
 3. Previously annotated dialogues show with ✓
 4. Click any dialogue to view/edit your annotation
+
+**Important**: Your password protects your annotations. Only someone with your password can access or modify your work.
 
 ### Editing Existing Annotations
 1. Select a previously annotated dialogue
@@ -227,7 +232,9 @@
 
 ### "Login not working"
 - Make sure you registered first
-- Check username spelling (case-sensitive)
+- Check username spelling (it's case-sensitive)
+- Verify your password is correct
+- If you forgot your password, contact your research coordinator
 - Try refreshing the page (F5)
 
 ### "Dialogues not loading"
@@ -262,6 +269,7 @@
 
 ### What Data is Stored?
 - Your username
+- Your password (securely hashed - not stored in plain text)
 - Your annotations (BDI, cognitive appraisals)
 - Dialogue IDs you've annotated
 - Timestamps of saves

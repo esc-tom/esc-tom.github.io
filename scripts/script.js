@@ -26,9 +26,53 @@ const selectedAppraisalsContainer = document.getElementById('selected-appraisals
 // LocalStorage keys
 const STORAGE_KEYS = {
     USERS: 'annotation_users',
+    PASSWORDS: 'annotation_passwords',
     CURRENT_USER: 'annotation_username',
     ANNOTATIONS_PREFIX: 'annotation_data_'
 };
+
+// Password hashing utility using SHA-256
+async function hashPassword(password, username) {
+    // Use username as salt for simplicity
+    const salt = username.toLowerCase();
+    const textToHash = password + salt;
+    
+    // Convert string to Uint8Array
+    const msgBuffer = new TextEncoder().encode(textToHash);
+    
+    // Hash the message
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    
+    // Convert ArrayBuffer to hex string
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    
+    return hashHex;
+}
+
+// Verify password
+async function verifyPassword(username, password) {
+    const passwordsJson = localStorage.getItem(STORAGE_KEYS.PASSWORDS);
+    const passwords = passwordsJson ? JSON.parse(passwordsJson) : {};
+    
+    if (!passwords[username]) {
+        return false;
+    }
+    
+    const hashedInput = await hashPassword(password, username);
+    return hashedInput === passwords[username];
+}
+
+// Store password hash
+async function storePasswordHash(username, password) {
+    const passwordsJson = localStorage.getItem(STORAGE_KEYS.PASSWORDS);
+    const passwords = passwordsJson ? JSON.parse(passwordsJson) : {};
+    
+    const hashedPassword = await hashPassword(password, username);
+    passwords[username] = hashedPassword;
+    
+    localStorage.setItem(STORAGE_KEYS.PASSWORDS, JSON.stringify(passwords));
+}
 
 // Initialize
 async function init() {
@@ -1149,23 +1193,65 @@ function setupLoginListeners() {
     const loginBtn = document.getElementById('login-btn');
     const registerBtn = document.getElementById('register-btn');
     const usernameInput = document.getElementById('username-input');
+    const passwordInput = document.getElementById('password-input');
+    const confirmPasswordGroup = document.getElementById('confirm-password-group');
+    const confirmPasswordInput = document.getElementById('confirm-password-input');
     
-    loginBtn.addEventListener('click', handleLogin);
-    registerBtn.addEventListener('click', handleRegister);
+    // Show confirm password field when Register button is focused/hovered
+    registerBtn.addEventListener('mouseenter', () => {
+        confirmPasswordGroup.style.display = 'block';
+    });
+    
+    registerBtn.addEventListener('focus', () => {
+        confirmPasswordGroup.style.display = 'block';
+    });
+    
+    // Hide confirm password when clicking Login
+    loginBtn.addEventListener('click', () => {
+        confirmPasswordGroup.style.display = 'none';
+        handleLogin();
+    });
+    
+    registerBtn.addEventListener('click', () => {
+        confirmPasswordGroup.style.display = 'block';
+        handleRegister();
+    });
     
     // Allow Enter key to login
     usernameInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
-            handleLogin();
+            passwordInput.focus();
+        }
+    });
+    
+    passwordInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            if (confirmPasswordGroup.style.display === 'block') {
+                confirmPasswordInput.focus();
+            } else {
+                handleLogin();
+            }
+        }
+    });
+    
+    confirmPasswordInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            handleRegister();
         }
     });
 }
 
 async function handleLogin() {
     const username = document.getElementById('username-input').value.trim();
+    const password = document.getElementById('password-input').value;
     
     if (!username) {
         showLoginError('Please enter a username');
+        return;
+    }
+    
+    if (!password) {
+        showLoginError('Please enter a password');
         return;
     }
     
@@ -1175,6 +1261,13 @@ async function handleLogin() {
         
         if (!users.includes(username)) {
             showLoginError('Username not found. Please register first.');
+            return;
+        }
+        
+        // Verify password
+        const isPasswordValid = await verifyPassword(username, password);
+        if (!isPasswordValid) {
+            showLoginError('Incorrect password. Please try again.');
             return;
         }
         
@@ -1190,9 +1283,16 @@ async function handleLogin() {
 
 async function handleRegister() {
     const username = document.getElementById('username-input').value.trim();
+    const password = document.getElementById('password-input').value;
+    const confirmPassword = document.getElementById('confirm-password-input').value;
     
     if (!username) {
         showLoginError('Please enter a username');
+        return;
+    }
+    
+    if (!password) {
+        showLoginError('Please enter a password');
         return;
     }
     
@@ -1213,6 +1313,17 @@ async function handleRegister() {
         return;
     }
     
+    // Validate password
+    if (password.length < 6) {
+        showLoginError('Password must be at least 6 characters');
+        return;
+    }
+    
+    if (password !== confirmPassword) {
+        showLoginError('Passwords do not match');
+        return;
+    }
+    
     try {
         const usersJson = localStorage.getItem(STORAGE_KEYS.USERS);
         const users = usersJson ? JSON.parse(usersJson) : [];
@@ -1222,6 +1333,9 @@ async function handleRegister() {
             showLoginError('Username already exists');
             return;
         }
+        
+        // Store password hash
+        await storePasswordHash(username, password);
         
         // Add new user
         users.push(username);

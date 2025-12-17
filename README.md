@@ -8,7 +8,7 @@ Visit the live tool at: `https://[your-username].github.io/`
 
 ## Features
 
-- **User Management**: Register and login with usernames (stored locally)
+- **User Management**: Register and login with username/password (password-protected, stored locally with SHA-256 hashing)
 - **Dialogue Annotation**: View and annotate therapeutic dialogues
 - **Persona Profiles**: Display patient information including Big Five personality traits
 - **BDI Annotations**: Annotate beliefs, desires, and intentions
@@ -22,7 +22,7 @@ Visit the live tool at: `https://[your-username].github.io/`
 ### For Users
 
 1. Visit the GitHub Pages URL
-2. Register with a username or login with an existing one
+2. Register with a username and password, or login with existing credentials
 3. Select a dialogue from the dropdown
 4. Review the dialogue turns
 5. Click on the turn that provided minimum necessary context
@@ -109,8 +109,11 @@ Edit `data/cognitive_dimensions.json` to modify the cognitive appraisal options:
 All data is stored in the browser's localStorage:
 
 - `annotation_users`: Array of registered usernames
+- `annotation_passwords`: Password hashes (SHA-256) for each user
 - `annotation_username`: Currently logged-in user
 - `annotation_data_{username}_{dialogue_id}`: Individual annotations
+
+**Security Note**: Passwords are hashed using SHA-256 with username as salt before storage. Plain-text passwords are never stored.
 
 ### Annotation Data Format
 

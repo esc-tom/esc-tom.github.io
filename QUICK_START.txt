@@ -159,6 +159,7 @@ For You:
    SETUP.md         - Deployment step-by-step guide  
    VERIFICATION.md  - Complete testing checklist
    SUMMARY.md       - Implementation details and comparison
+   PASSWORD_SECURITY.md - Password protection documentation
 
 For Annotators:
    ANNOTATOR_GUIDE.md - Complete user manual with screenshots

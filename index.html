@@ -14,13 +14,26 @@
                 <h3>👤 Welcome to ESC-ToM Annotation Tool</h3>
             </div>
             <div class="modal-body">
-                <p class="login-instruction">Please log in with an existing username or register a new one</p>
+                <p class="login-instruction">Please log in or register. Your password protects your annotations.</p>
                 
                 <!-- Username Input -->
                 <div class="form-group">
                     <label for="username-input">Username:</label>
                     <input type="text" id="username-input" class="login-input" placeholder="Enter username (3-20 characters)" maxlength="20">
                     <p class="help-text">Only letters, numbers, underscore, and hyphen allowed</p>
+                </div>
+                
+                <!-- Password Input -->
+                <div class="form-group">
+                    <label for="password-input">Password:</label>
+                    <input type="password" id="password-input" class="login-input" placeholder="Enter password (min 6 characters)">
+                    <p class="help-text">Choose a secure password to protect your annotations</p>
+                </div>
+                
+                <!-- Confirm Password (for registration) -->
+                <div class="form-group" id="confirm-password-group" style="display: none;">
+                    <label for="confirm-password-input">Confirm Password:</label>
+                    <input type="password" id="confirm-password-input" class="login-input" placeholder="Re-enter password">
                 </div>
                 
                 <!-- Existing Users -->
