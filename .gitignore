@@ -1,0 +1,25 @@
+# Python virtual environment
+annotation/venv/
+annotation/__pycache__/
+annotation/src/__pycache__/
+
+# Annotated data from Flask app
+annotation/annotated/*/
+
+# Backup files
+*.backup
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Log files
+*.log
+

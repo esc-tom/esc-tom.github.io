@@ -1,0 +1,1265 @@
+// Global state
+let currentUsername = null; // Current logged-in user
+let allDialogues = [];
+let currentDialogue = null;
+let currentTurnIndex = 0;
+let cognitiveDimensions = [];
+let selectedAppraisals = [];
+let readyToAnnotateTurn = null; // Tracks when user clicked "Ready to Annotate"
+let minContextTurnIndex = null; // Tracks which turn provides minimum necessary context
+const MAX_APPRAISALS = 5;
+
+// Exploration strategies list
+const EXPLORATION_STRATEGIES = [
+    'Validating the Emotion',
+    'Reflective Listening',
+    'Exploring Core Beliefs',
+    'Open-Ended Question',
+    'Uncovering the Whole Story'
+];
+
+// DOM Elements
+const dialogueSelect = document.getElementById('dialogue-select');
+const dialogueContainer = document.getElementById('dialogue-container');
+const progressText = document.getElementById('progress-text');
+const saveBtn = document.getElementById('save-btn');
+const clearBtn = document.getElementById('clear-btn');
+
+// Annotation inputs
+const beliefInput = document.getElementById('belief');
+const desireInput = document.getElementById('desire');
+const intentionInput = document.getElementById('intention');
+const appraisalOptionsContainer = document.getElementById('appraisal-options');
+const selectedAppraisalsContainer = document.getElementById('selected-appraisals');
+
+// Initialize
+async function init() {
+    // Check if user is already logged in
+    const savedUsername = localStorage.getItem('annotation_username');
+    if (savedUsername) {
+        currentUsername = savedUsername;
+        hideLoginModal();
+        await initializeApp();
+    } else {
+        // Show login modal and load users
+        await loadUsers();
+        setupLoginListeners();
+    }
+}
+
+// Initialize the main app after login
+async function initializeApp() {
+    updateUserBadge();
+    await loadDialogues();
+    await loadCognitiveDimensions();
+    setupEventListeners();
+    setupNotificationListeners();
+    await checkAnnotationProgress();
+    
+    // Automatically load first unannotated dialogue or first dialogue
+    if (allDialogues.length > 0) {
+        const firstUnannotated = await findFirstUnannotatedDialogue();
+        const indexToLoad = firstUnannotated !== -1 ? firstUnannotated : 0;
+        dialogueSelect.value = indexToLoad;
+        await handleDialogueChange();
+    }
+}
+
+// Load existing users
+async function loadUsers() {
+    try {
+        const response = await fetch('/api/users');
+        const users = await response.json();
+        displayUsers(users);
+    } catch (error) {
+        console.error('Error loading users:', error);
+        document.getElementById('user-list').innerHTML = '<p class="error-text">Error loading users</p>';
+    }
+}
+
+// Display user list
+function displayUsers(users) {
+    const userList = document.getElementById('user-list');
+    
+    if (users.length === 0) {
+        userList.innerHTML = '<p class="no-users">No existing users. Register a new one!</p>';
+        return;
+    }
+    
+    userList.innerHTML = '';
+    users.forEach(username => {
+        const userBtn = document.createElement('button');
+        userBtn.className = 'user-button';
+        userBtn.textContent = username;
+        userBtn.addEventListener('click', () => {
+            document.getElementById('username-input').value = username;
+        });
+        userList.appendChild(userBtn);
+    });
+}
+
+// Load all dialogues
+async function loadDialogues() {
+    try {
+        const response = await fetch('/api/dialogues');
+        allDialogues = await response.json();
+        populateDialogueSelector();
+    } catch (error) {
+        console.error('Error loading dialogues:', error);
+        showStatus('Error loading dialogues', 'error');
+    }
+}
+
+// Load cognitive appraisal dimensions
+async function loadCognitiveDimensions() {
+    try {
+        const response = await fetch('/api/cognitive_dimensions');
+        cognitiveDimensions = await response.json();
+        renderAppraisalOptions();
+    } catch (error) {
+        console.error('Error loading cognitive dimensions:', error);
+        showStatus('Error loading cognitive dimensions', 'error');
+    }
+}
+
+// Check annotation progress
+let annotationStatus = {};
+
+async function checkAnnotationProgress() {
+    let annotatedCount = 0;
+    
+    for (let i = 0; i < allDialogues.length; i++) {
+        const dialogue = allDialogues[i];
+        try {
+            const response = await fetch(`/api/annotation/${currentUsername}/${dialogue.entry_id}`);
+            const result = await response.json();
+            if (result.exists) {
+                annotationStatus[dialogue.entry_id] = true;
+                annotatedCount++;
+            } else {
+                annotationStatus[dialogue.entry_id] = false;
+            }
+        } catch (error) {
+            annotationStatus[dialogue.entry_id] = false;
+        }
+    }
+    
+    updateProgressBar(annotatedCount, allDialogues.length);
+}
+
+function updateProgressBar(completed, total) {
+    const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+    const progressBar = document.getElementById('progress-bar');
+    const progressBarText = document.getElementById('progress-bar-text');
+    const progressText = document.getElementById('progress-text');
+    
+    if (progressBar && progressBarText) {
+        progressBar.style.width = percentage + '%';
+        progressBarText.textContent = percentage + '%';
+    }
+    
+    if (progressText) {
+        progressText.textContent = `Progress: ${completed} / ${total} dialogues annotated`;
+    }
+}
+
+async function findFirstUnannotatedDialogue() {
+    for (let i = 0; i < allDialogues.length; i++) {
+        const dialogue = allDialogues[i];
+        if (!annotationStatus[dialogue.entry_id]) {
+            return i;
+        }
+    }
+    return -1; // All annotated
+}
+
+// Populate dialogue selector dropdown
+function populateDialogueSelector() {
+    dialogueSelect.innerHTML = '<option value="">-- Select a Dialogue --</option>';
+    allDialogues.forEach((dialogue, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        const isAnnotated = annotationStatus[dialogue.entry_id];
+        const marker = isAnnotated ? '✓ ' : '';
+        option.textContent = `${marker}${dialogue.entry_id} (${dialogue.dialogue_history.length} turns)`;
+        dialogueSelect.appendChild(option);
+    });
+}
+
+// Render cognitive appraisal options
+function renderAppraisalOptions() {
+    appraisalOptionsContainer.innerHTML = '';
+    cognitiveDimensions.forEach(dimension => {
+        const key = Object.keys(dimension)[0];
+        const description = Object.values(dimension)[0];
+        
+        const option = document.createElement('div');
+        option.className = 'appraisal-option';
+        option.dataset.key = key;
+        
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'appraisal-option-name';
+        nameDiv.textContent = key.replace(/_/g, ' ');
+        
+        const descDiv = document.createElement('div');
+        descDiv.className = 'appraisal-option-desc';
+        descDiv.textContent = description;
+        
+        option.appendChild(nameDiv);
+        option.appendChild(descDiv);
+        option.addEventListener('click', () => addAppraisal(key, description));
+        appraisalOptionsContainer.appendChild(option);
+    });
+    updateAppraisalOptions();
+}
+
+// Setup event listeners
+function setupEventListeners() {
+    dialogueSelect.addEventListener('change', handleDialogueChange);
+    saveBtn.addEventListener('click', saveAnnotation);
+    clearBtn.addEventListener('click', clearAnnotations);
+    
+    // Setup collapsible sections
+    setupCollapsibleSections();
+    
+    // Setup modal listeners
+    setupModalListeners();
+}
+
+// Setup modal event listeners
+function setupModalListeners() {
+    const confirmSaveBtn = document.getElementById('confirm-save');
+    const confirmCancelBtn = document.getElementById('confirm-cancel');
+    const modal = document.getElementById('confirm-modal');
+    
+    confirmSaveBtn.addEventListener('click', performSave);
+    confirmCancelBtn.addEventListener('click', hideConfirmModal);
+    
+    // Close modal when clicking outside
+    modal.addEventListener('click', function(e) {
+        if (e.target === modal) {
+            hideConfirmModal();
+        }
+    });
+}
+
+// Setup collapsible section functionality
+function setupCollapsibleSections() {
+    const sectionHeaders = document.querySelectorAll('.section-header');
+    sectionHeaders.forEach(header => {
+        header.addEventListener('click', function() {
+            const sectionId = this.getAttribute('data-section');
+            const content = document.getElementById(`${sectionId}-content`);
+            
+            // Toggle collapsed state
+            this.classList.toggle('collapsed');
+            content.classList.toggle('collapsed');
+        });
+    });
+}
+
+// Handle dialogue selection change
+async function handleDialogueChange() {
+    const selectedIndex = dialogueSelect.value;
+    if (selectedIndex === '') {
+        currentDialogue = null;
+        dialogueContainer.innerHTML = '<p class="placeholder">Please select a dialogue to begin annotation.</p>';
+        hidePersonaSection();
+        saveBtn.disabled = true;
+        return;
+    }
+
+    currentDialogue = allDialogues[selectedIndex];
+    currentTurnIndex = 0;
+    readyToAnnotateTurn = 0; // Set to 0 since we auto-show exploration turns
+    minContextTurnIndex = null; // Reset min context marker
+    
+    // Update dialogue info
+    updateDialogueInfo();
+    
+    // Display persona information
+    displayPersonaInfo();
+    
+    // Clear and reset
+    dialogueContainer.innerHTML = '';
+    clearAnnotations();
+    
+    // Try to load existing annotation
+    await loadExistingAnnotation();
+    
+    // Automatically show exploration phase turns
+    showExplorationTurns();
+    
+    // Enable annotation inputs immediately
+    enableAnnotationInputs();
+    
+    // Enable controls
+    saveBtn.disabled = false;
+    
+    updateDialogueProgress();
+}
+
+// Big Five trait mappings
+const BIG_FIVE_TRAITS = {
+    extraversion: ['extroverted', 'introverted'],
+    agreeableness: ['agreeable', 'antagonistic'],
+    conscientiousness: ['organized', 'careless'],
+    neuroticism: ['emotionally stable', 'emotionally unstable'],
+    openness: ['open-minded', 'conservative']
+};
+
+const BIG_FIVE_LABELS = {
+    extraversion: 'Extraversion',
+    agreeableness: 'Agreeableness',
+    conscientiousness: 'Conscientiousness',
+    neuroticism: 'Neuroticism',
+    openness: 'Openness'
+};
+
+// Parse traits text to extract Big Five dimensions
+function parseBigFiveTraits(traitsText) {
+    if (!traitsText) return {};
+    
+    const traits = {};
+    const lowerText = traitsText.toLowerCase();
+    
+    // Check each Big Five dimension
+    for (const [dimension, values] of Object.entries(BIG_FIVE_TRAITS)) {
+        for (const value of values) {
+            if (lowerText.includes(value)) {
+                traits[dimension] = capitalizeFirst(value);
+                break;
+            }
+        }
+    }
+    
+    return traits;
+}
+
+// Display persona information
+function displayPersonaInfo() {
+    const personaSection = document.getElementById('persona-section');
+    
+    if (!currentDialogue || !currentDialogue.persona_profile) {
+        hidePersonaSection();
+        return;
+    }
+    
+    const profile = currentDialogue.persona_profile;
+    
+    // Update persona fields
+    document.getElementById('persona-name').textContent = profile.name || 'N/A';
+    document.getElementById('persona-gender').textContent = capitalizeFirst(profile.gender) || 'N/A';
+    document.getElementById('persona-education').textContent = capitalizeFirst(profile.education) || 'N/A';
+    document.getElementById('persona-occupation').textContent = capitalizeFirst(profile.occupation) || 'N/A';
+    
+    // Parse and display Big Five traits
+    const bigFiveContainer = document.getElementById('persona-big-five');
+    const bigFiveTraits = parseBigFiveTraits(profile.traits);
+    
+    if (Object.keys(bigFiveTraits).length > 0) {
+        bigFiveContainer.innerHTML = '';
+        
+        // Create trait badges in a specific order
+        const orderedDimensions = ['extraversion', 'agreeableness', 'conscientiousness', 'neuroticism', 'openness'];
+        
+        for (const dimension of orderedDimensions) {
+            if (bigFiveTraits[dimension]) {
+                const badge = document.createElement('div');
+                badge.className = 'trait-badge';
+                
+                const label = document.createElement('span');
+                label.className = 'trait-label';
+                label.textContent = BIG_FIVE_LABELS[dimension] + ':';
+                
+                const value = document.createElement('span');
+                value.className = 'trait-value';
+                value.textContent = bigFiveTraits[dimension];
+                
+                badge.appendChild(label);
+                badge.appendChild(value);
+                bigFiveContainer.appendChild(badge);
+            }
+        }
+    } else {
+        bigFiveContainer.innerHTML = '<span class="trait-na">N/A</span>';
+    }
+    
+    // Show the section
+    personaSection.style.display = 'block';
+}
+
+// Hide persona section
+function hidePersonaSection() {
+    const personaSection = document.getElementById('persona-section');
+    personaSection.style.display = 'none';
+}
+
+// Helper function to capitalize first letter
+function capitalizeFirst(str) {
+    if (!str) return '';
+    return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// Show all turns (exploration phase logic removed as strategies are not present)
+function showExplorationTurns() {
+    if (!currentDialogue || !currentDialogue.dialogue_history) {
+        return;
+    }
+    
+    dialogueContainer.innerHTML = '';
+    let turnPairIndex = 0;
+    
+    // Iterate through dialogue history in pairs
+    for (let i = 0; i < currentDialogue.dialogue_history.length; i += 2) {
+        const turn1 = currentDialogue.dialogue_history[i];
+        const turn2 = currentDialogue.dialogue_history[i + 1];
+        
+        // Create and append the turn pair
+        // We pass whatever we have. If turn2 is undefined, it will be handled by createTurnPairElement
+        if (turn1) {
+            const turnPairElement = createTurnPairElement(turn1, turn2, i, turnPairIndex + 1);
+            dialogueContainer.appendChild(turnPairElement);
+            currentTurnIndex = (turn2) ? i + 2 : i + 1;
+            turnPairIndex++;
+                }
+            }
+    
+    if (turnPairIndex === 0) {
+        dialogueContainer.innerHTML = '<p class="placeholder">No turns found in this dialogue.</p>';
+    } else {
+        // Scroll to top to show first turn
+        dialogueContainer.scrollTop = 0;
+        console.log(`Showing ${turnPairIndex} turn pairs`);
+    }
+}
+
+// BDI prefixes
+const BDI_PREFIXES = {
+    belief: 'I believe that',
+    desire: 'I wish to',
+    intention: 'I intend to'
+};
+
+// Strip prefix from BDI value
+function stripPrefix(type, value) {
+    if (!value) return '';
+    const prefix = BDI_PREFIXES[type];
+    if (value.startsWith(prefix)) {
+        return value.substring(prefix.length).trim();
+    }
+    return value.trim();
+}
+
+// Add prefix to BDI value
+function addPrefix(type, value) {
+    if (!value) return '';
+    const prefix = BDI_PREFIXES[type];
+    const trimmed = value.trim();
+    if (trimmed.startsWith(prefix)) {
+        return trimmed; // Already has prefix
+    }
+    return `${prefix} ${trimmed}`;
+}
+
+// Enable/disable annotation inputs
+function enableAnnotationInputs() {
+    beliefInput.disabled = false;
+    desireInput.disabled = false;
+    intentionInput.disabled = false;
+    
+    // Enable appraisal options
+    const appraisalOptions = document.querySelectorAll('.appraisal-option');
+    appraisalOptions.forEach(option => {
+        option.classList.remove('input-disabled');
+    });
+    
+    // Hide locked message
+    const lockedMessage = document.getElementById('annotation-locked-message');
+    if (lockedMessage) {
+        lockedMessage.classList.add('hidden');
+    }
+}
+
+// Removed updateReadyIndicator function - no longer needed in exploration-only mode
+
+// Update dialogue info display
+function updateDialogueInfo() {
+    const dialogueInfo = document.getElementById('current-dialogue-info');
+    if (!currentDialogue) {
+        dialogueInfo.textContent = '';
+        return;
+    }
+    
+    const totalTurnPairs = Math.ceil(currentDialogue.dialogue_history.length / 2);
+    const isAnnotated = annotationStatus[currentDialogue.entry_id];
+    const status = isAnnotated ? '✓ Annotated' : '○ Not annotated';
+    
+    dialogueInfo.innerHTML = `
+        <span class="dialogue-id">${currentDialogue.entry_id}</span>
+        <span class="dialogue-stats">${totalTurnPairs} turn pairs</span>
+        <span class="dialogue-status ${isAnnotated ? 'annotated' : 'pending'}">${status}</span>
+    `;
+}
+
+// Load existing annotation if available
+async function loadExistingAnnotation() {
+    try {
+        const response = await fetch(`/api/annotation/${currentUsername}/${currentDialogue.entry_id}`);
+        const result = await response.json();
+        
+        if (result.exists && result.data) {
+            const annotation = result.data;
+            // Populate form fields (strip prefixes when loading)
+            beliefInput.value = stripPrefix('belief', annotation.belief || '');
+            desireInput.value = stripPrefix('desire', annotation.desire || '');
+            intentionInput.value = stripPrefix('intention', annotation.intention || '');
+            
+            // Populate cognitive appraisals
+            if (annotation.cognitive_appraisals) {
+                selectedAppraisals = annotation.cognitive_appraisals;
+                renderSelectedAppraisals();
+            }
+            
+            // Load ready to annotate turn (set to 0 for exploration-only mode)
+            if (annotation.ready_to_annotate_turn !== undefined && annotation.ready_to_annotate_turn !== null) {
+                readyToAnnotateTurn = annotation.ready_to_annotate_turn;
+            } else {
+                readyToAnnotateTurn = 0;
+            }
+            
+            // Load minimum context turn
+            if (annotation.min_context_turn !== undefined && annotation.min_context_turn !== null) {
+                minContextTurnIndex = annotation.min_context_turn;
+                // Highlight the turn after rendering
+                setTimeout(() => {
+                    const turnPair = document.querySelector(`[data-turn-index="${minContextTurnIndex}"]`);
+                    if (turnPair) {
+                        turnPair.classList.add('min-context-selected');
+                    }
+                }, 100);
+            }
+            
+            showStatus('Loaded existing annotation', 'success');
+            setTimeout(() => hideStatus(), 2000);
+        }
+    } catch (error) {
+        console.error('Error loading annotation:', error);
+    }
+}
+
+// Removed showNextTurn function - no longer needed in exploration-only mode
+
+// Create DOM element for a dialogue turn pair
+function createTurnPairElement(turn1, turn2, startIndex, turnPairNumber) {
+    const pairDiv = document.createElement('div');
+    pairDiv.className = 'dialogue-turn-pair';
+    pairDiv.dataset.turnIndex = startIndex;
+    pairDiv.dataset.turnPairNumber = turnPairNumber;
+    
+    // Add click handler for marking minimum context
+    pairDiv.addEventListener('click', () => markMinContextTurn(startIndex, turnPairNumber, pairDiv));
+    
+    // Add min context indicator button
+    const minContextBtn = document.createElement('button');
+    minContextBtn.className = 'min-context-btn';
+    minContextBtn.title = 'Click this turn to mark it as minimum necessary context';
+    minContextBtn.innerHTML = `<span class="min-context-icon">✓</span><span class="min-context-label">Turn ${turnPairNumber}</span>`;
+    pairDiv.appendChild(minContextBtn);
+    
+    // Create first turn
+    const div1 = createSingleTurnElement(turn1, startIndex);
+    pairDiv.appendChild(div1);
+    
+    // Create second turn if exists
+    if (turn2) {
+        const div2 = createSingleTurnElement(turn2, startIndex + 1);
+        pairDiv.appendChild(div2);
+    }
+    
+    return pairDiv;
+}
+
+// Mark a turn as providing minimum necessary context
+function markMinContextTurn(turnIndex, turnPairNumber, element) {
+    // Check if this is already selected (toggle behavior)
+    if (minContextTurnIndex === turnIndex) {
+        // Deselect
+        minContextTurnIndex = null;
+        
+        // Remove selection class
+        element.classList.remove('min-context-selected');
+        
+        showStatus('Removed minimum context marker', 'info');
+    } else {
+        // Select new
+    minContextTurnIndex = turnIndex;
+    
+    // Remove previous selection
+    document.querySelectorAll('.dialogue-turn-pair').forEach(pair => {
+        pair.classList.remove('min-context-selected');
+    });
+    
+    // Mark this turn
+    element.classList.add('min-context-selected');
+    
+    showStatus(`✓ Marked Turn ${turnPairNumber} as minimum necessary context`, 'success');
+    }
+    
+    setTimeout(() => hideStatus(), 2000);
+}
+
+// Create DOM element for a single utterance
+function createSingleTurnElement(turn, index) {
+    const turnDiv = document.createElement('div');
+    turnDiv.className = `dialogue-turn ${turn.speaker}`;
+    
+    const speakerLabel = document.createElement('div');
+    speakerLabel.className = `speaker-label ${turn.speaker}`;
+    
+    const speakerText = document.createElement('span');
+    speakerText.textContent = turn.speaker.toUpperCase();
+    speakerLabel.appendChild(speakerText);
+    
+    if (turn.strategy) {
+        const strategyTag = document.createElement('span');
+        strategyTag.className = 'strategy-tag';
+        strategyTag.textContent = turn.strategy;
+        speakerLabel.appendChild(strategyTag);
+    }
+    
+    const utterance = document.createElement('div');
+    utterance.className = 'utterance';
+    utterance.textContent = turn.utterance;
+    
+    turnDiv.appendChild(speakerLabel);
+    turnDiv.appendChild(utterance);
+    
+    return turnDiv;
+}
+
+// Removed resetDialogue function - no longer needed in exploration-only mode
+
+// Update progress text - now just updates the overall annotation progress
+function updateProgress() {
+    // Progress is now handled by updateProgressBar which shows
+    // the number of annotated entries out of total entries
+    // This function is kept for backward compatibility but does nothing
+    // as we don't want to override the main progress display
+}
+
+// Update dialogue progress bar (shows % of dialogue unveiled)
+function updateDialogueProgress() {
+    if (!currentDialogue) {
+        const progressText = document.getElementById('dialogue-progress-text');
+        const progressBar = document.getElementById('dialogue-progress-bar');
+        const progressBarText = document.getElementById('dialogue-progress-bar-text');
+        
+        if (progressText) progressText.textContent = 'No dialogue loaded';
+        if (progressBar) progressBar.style.width = '0%';
+        if (progressBarText) progressBarText.textContent = '0%';
+        return;
+    }
+    
+    const totalUtterances = currentDialogue.dialogue_history.length;
+    const viewedUtterances = currentTurnIndex;
+    const percentage = totalUtterances > 0 ? Math.round((viewedUtterances / totalUtterances) * 100) : 0;
+    
+    const progressText = document.getElementById('dialogue-progress-text');
+    const progressBar = document.getElementById('dialogue-progress-bar');
+    const progressBarText = document.getElementById('dialogue-progress-bar-text');
+    
+    if (progressText) {
+        const turnPairsViewed = Math.ceil(viewedUtterances / 2);
+        const totalTurnPairs = Math.ceil(totalUtterances / 2);
+        progressText.textContent = `Viewing: ${turnPairsViewed} / ${totalTurnPairs} turn pairs (${viewedUtterances} / ${totalUtterances} utterances)`;
+    }
+    
+    if (progressBar) {
+        progressBar.style.width = percentage + '%';
+    }
+    
+    if (progressBarText) {
+        progressBarText.textContent = percentage + '%';
+    }
+}
+
+// Add cognitive appraisal
+function addAppraisal(key, description) {
+    if (selectedAppraisals.length >= MAX_APPRAISALS) {
+        showStatus(`Maximum ${MAX_APPRAISALS} appraisals allowed`, 'error');
+        setTimeout(() => hideStatus(), 2000);
+        return;
+    }
+    
+    // Check if already added
+    if (selectedAppraisals.some(a => a.dimension === key)) {
+        showStatus('This appraisal is already selected', 'error');
+        setTimeout(() => hideStatus(), 2000);
+        return;
+    }
+    
+    selectedAppraisals.push({
+        dimension: key,
+        description: description,
+        intensity: 5
+    });
+    
+    renderSelectedAppraisals();
+    updateAppraisalOptions();
+}
+
+// Remove cognitive appraisal
+function removeAppraisal(key) {
+    selectedAppraisals = selectedAppraisals.filter(a => a.dimension !== key);
+    renderSelectedAppraisals();
+    updateAppraisalOptions();
+}
+
+// Update appraisal intensity
+function updateAppraisalIntensity(key, intensity) {
+    const appraisal = selectedAppraisals.find(a => a.dimension === key);
+    if (appraisal) {
+        appraisal.intensity = parseInt(intensity);
+    }
+}
+
+// Render selected appraisals with drag-and-drop support
+function renderSelectedAppraisals() {
+    if (selectedAppraisals.length === 0) {
+        selectedAppraisalsContainer.innerHTML = '<p class="placeholder-small">Click on dimensions above to add them here</p>';
+        return;
+    }
+    
+    selectedAppraisalsContainer.innerHTML = '';
+    selectedAppraisals.forEach((appraisal, index) => {
+        const item = document.createElement('div');
+        item.className = 'appraisal-item';
+        item.draggable = true;
+        item.dataset.dimension = appraisal.dimension;
+        
+        // Drag handle
+        const dragHandle = document.createElement('div');
+        dragHandle.className = 'drag-handle';
+        dragHandle.innerHTML = '⋮⋮';
+        dragHandle.title = 'Drag to reorder';
+        
+        // Rank number
+        const rankNum = document.createElement('div');
+        rankNum.className = 'appraisal-rank';
+        rankNum.textContent = `${index + 1}.`;
+        
+        // Content container
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'appraisal-item-content';
+        
+        const label = document.createElement('div');
+        label.className = 'appraisal-item-label';
+        label.textContent = appraisal.dimension.replace(/_/g, ' ');
+        
+        const description = document.createElement('div');
+        description.className = 'appraisal-item-description';
+        description.textContent = appraisal.description;
+        
+        contentContainer.appendChild(label);
+        contentContainer.appendChild(description);
+        
+        // Intensity and remove controls
+        const controlsContainer = document.createElement('div');
+        controlsContainer.className = 'appraisal-item-controls';
+        
+        const intensityContainer = document.createElement('div');
+        intensityContainer.className = 'appraisal-item-intensity';
+        
+        const intensityLabel = document.createElement('label');
+        intensityLabel.textContent = 'Intensity:';
+        
+        const intensityInput = document.createElement('input');
+        intensityInput.type = 'number';
+        intensityInput.min = '1';
+        intensityInput.max = '10';
+        intensityInput.value = appraisal.intensity;
+        intensityInput.addEventListener('change', (e) => {
+            const value = Math.max(1, Math.min(10, parseInt(e.target.value) || 5));
+            e.target.value = value;
+            updateAppraisalIntensity(appraisal.dimension, value);
+        });
+        
+        intensityContainer.appendChild(intensityLabel);
+        intensityContainer.appendChild(intensityInput);
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'appraisal-item-remove';
+        removeBtn.textContent = '✕';
+        removeBtn.title = 'Remove';
+        removeBtn.addEventListener('click', () => removeAppraisal(appraisal.dimension));
+        
+        controlsContainer.appendChild(intensityContainer);
+        controlsContainer.appendChild(removeBtn);
+        
+        // Assemble the item
+        item.appendChild(dragHandle);
+        item.appendChild(rankNum);
+        item.appendChild(contentContainer);
+        item.appendChild(controlsContainer);
+        
+        // Add drag event listeners
+        item.addEventListener('dragstart', handleDragStart);
+        item.addEventListener('dragend', handleDragEnd);
+        item.addEventListener('dragover', handleDragOver);
+        item.addEventListener('drop', handleDrop);
+        item.addEventListener('dragenter', handleDragEnter);
+        item.addEventListener('dragleave', handleDragLeave);
+        
+        selectedAppraisalsContainer.appendChild(item);
+    });
+}
+
+// Drag and drop handlers - Simplified and reliable
+let draggedElement = null;
+
+function handleDragStart(e) {
+    draggedElement = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', this.innerHTML);
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+    
+    // Remove all drag-over indicators
+    document.querySelectorAll('.appraisal-item').forEach(item => {
+        item.classList.remove('drag-over-before', 'drag-over-after');
+    });
+}
+
+function handleDragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+    
+    if (this !== draggedElement) {
+        // Remove all indicators first
+        document.querySelectorAll('.appraisal-item').forEach(item => {
+            item.classList.remove('drag-over-before', 'drag-over-after');
+        });
+        
+        // Determine position
+        const rect = this.getBoundingClientRect();
+        const midpoint = rect.top + rect.height / 2;
+        const mouseY = e.clientY;
+        
+        // Add indicator
+        if (mouseY < midpoint) {
+            this.classList.add('drag-over-before');
+        } else {
+            this.classList.add('drag-over-after');
+        }
+    }
+    
+    return false;
+}
+
+function handleDragEnter(e) {
+    // Handled in dragover for consistency
+}
+
+function handleDragLeave(e) {
+    // Only remove if we're actually leaving the element bounds
+    const rect = this.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+    
+    if (x < rect.left || x >= rect.right || y < rect.top || y >= rect.bottom) {
+        this.classList.remove('drag-over-before', 'drag-over-after');
+    }
+}
+
+function handleDrop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+    e.preventDefault();
+    
+    if (!draggedElement || this === draggedElement) {
+        return false;
+    }
+    
+    // Get dimensions
+    const draggedDimension = draggedElement.dataset.dimension;
+    const targetDimension = this.dataset.dimension;
+    
+    // Find indices in data array
+    const draggedIndex = selectedAppraisals.findIndex(a => a.dimension === draggedDimension);
+    const targetIndex = selectedAppraisals.findIndex(a => a.dimension === targetDimension);
+    
+    if (draggedIndex === -1 || targetIndex === -1) {
+        return false;
+    }
+    
+    // Determine if we should insert before or after target
+    const insertBefore = this.classList.contains('drag-over-before');
+    
+    // Remove the dragged item
+    const [draggedItem] = selectedAppraisals.splice(draggedIndex, 1);
+    
+    // Calculate new position
+    let newIndex = targetIndex;
+    
+    // If we removed an item before the target, adjust target index
+    if (draggedIndex < targetIndex) {
+        newIndex--;
+    }
+    
+    // Adjust based on insert position
+    if (!insertBefore) {
+        newIndex++;
+    }
+    
+    // Insert at new position
+    selectedAppraisals.splice(newIndex, 0, draggedItem);
+    
+    // Re-render
+    renderSelectedAppraisals();
+    
+    return false;
+}
+
+// Update appraisal options (disable selected ones)
+function updateAppraisalOptions() {
+    const options = appraisalOptionsContainer.querySelectorAll('.appraisal-option');
+    options.forEach(option => {
+        const key = option.dataset.key;
+        if (selectedAppraisals.some(a => a.dimension === key)) {
+            option.classList.add('disabled');
+        } else {
+            option.classList.remove('disabled');
+        }
+    });
+}
+
+// Clear all annotations
+function clearAnnotations() {
+    beliefInput.value = '';
+    desireInput.value = '';
+    intentionInput.value = '';
+    selectedAppraisals = [];
+    renderSelectedAppraisals();
+    updateAppraisalOptions();
+    minContextTurnIndex = null;
+    hideStatus();
+}
+
+// Save annotation with confirmation
+async function saveAnnotation() {
+    if (!currentDialogue) {
+        showStatus('No dialogue selected', 'error');
+        return;
+    }
+    
+    // Show confirmation modal
+    showConfirmModal();
+}
+
+// Show confirmation modal
+function showConfirmModal() {
+    const modal = document.getElementById('confirm-modal');
+    const dialogueId = document.getElementById('confirm-dialogue-id');
+    const turns = document.getElementById('confirm-turns');
+    const appraisals = document.getElementById('confirm-appraisals');
+    const readyTurn = document.getElementById('confirm-ready-turn');
+    
+    // Populate modal with current annotation info
+    dialogueId.textContent = currentDialogue.entry_id;
+    const totalUtterances = currentDialogue.dialogue_history.length;
+    const totalTurnPairs = Math.ceil(totalUtterances / 2);
+    const currentPairs = Math.ceil(currentTurnIndex / 2);
+    turns.textContent = `${currentPairs} of ${totalTurnPairs} turn pairs`;
+    appraisals.textContent = `${selectedAppraisals.length} of 5`;
+    
+    // Show ready to annotate turn
+    if (readyToAnnotateTurn !== null) {
+        const readyPairs = Math.ceil(readyToAnnotateTurn / 2);
+        readyTurn.textContent = `Turn pair ${readyPairs} (${readyToAnnotateTurn} utterances)`;
+        readyTurn.style.color = 'var(--success-color)';
+        readyTurn.style.fontWeight = '600';
+    } else {
+        readyTurn.textContent = 'Not marked';
+        readyTurn.style.color = 'var(--text-secondary)';
+        readyTurn.style.fontWeight = 'normal';
+    }
+    
+    // Show minimum context turn
+    let minContextElement = document.getElementById('confirm-min-context');
+    if (!minContextElement) {
+        // Create the element if it doesn't exist
+        const summaryItem = document.createElement('div');
+        summaryItem.className = 'summary-item';
+        summaryItem.innerHTML = `
+            <span class="summary-label">Min. context turn:</span>
+            <span id="confirm-min-context" class="summary-value"></span>
+        `;
+        document.querySelector('.annotation-summary').appendChild(summaryItem);
+        minContextElement = document.getElementById('confirm-min-context');
+    }
+    
+    if (minContextTurnIndex !== null) {
+        const turnPair = document.querySelector(`[data-turn-index="${minContextTurnIndex}"]`);
+        const turnNumber = turnPair ? turnPair.dataset.turnPairNumber : '?';
+        minContextElement.textContent = `Turn ${turnNumber}`;
+        minContextElement.style.color = 'var(--success-color)';
+        minContextElement.style.fontWeight = '600';
+    } else {
+        minContextElement.textContent = 'Not marked';
+        minContextElement.style.color = 'var(--text-secondary)';
+        minContextElement.style.fontWeight = 'normal';
+    }
+    
+    modal.classList.add('show');
+}
+
+// Hide confirmation modal
+function hideConfirmModal() {
+    const modal = document.getElementById('confirm-modal');
+    modal.classList.remove('show');
+}
+
+// Actually save the annotation
+async function performSave() {
+    hideConfirmModal();
+    
+    const annotation = {
+        entry_id: currentDialogue.entry_id,
+        username: currentUsername,
+        turns_viewed: currentTurnIndex,
+        total_turns: currentDialogue.dialogue_history.length,
+        ready_to_annotate_turn: readyToAnnotateTurn,
+        min_context_turn: minContextTurnIndex,
+        belief: addPrefix('belief', beliefInput.value),
+        desire: addPrefix('desire', desireInput.value),
+        intention: addPrefix('intention', intentionInput.value),
+        cognitive_appraisals: selectedAppraisals,
+        timestamp: new Date().toISOString()
+    };
+    
+    try {
+        const response = await fetch('/api/save_annotation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(annotation)
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            showStatus('✅ Annotation saved successfully!', 'success');
+            
+            // Update annotation status and progress bar
+            annotationStatus[currentDialogue.entry_id] = true;
+            const annotatedCount = Object.values(annotationStatus).filter(v => v).length;
+            updateProgressBar(annotatedCount, allDialogues.length);
+            
+            // Update current dialogue info display
+            updateDialogueInfo();
+            
+            // Update dropdown to show checkmark
+            populateDialogueSelector();
+            dialogueSelect.value = allDialogues.findIndex(d => d.entry_id === currentDialogue.entry_id);
+            
+            // Auto-load next unannotated dialogue
+            const nextUnannotated = await findFirstUnannotatedDialogue();
+            if (nextUnannotated !== -1) {
+                setTimeout(async () => {
+                    dialogueSelect.value = nextUnannotated;
+                    await handleDialogueChange();
+                    showStatus(`✅ Loaded next dialogue: ${allDialogues[nextUnannotated].entry_id}`, 'success');
+                }, 1500);
+            } else {
+                showStatus('🎉 All dialogues completed!', 'success');
+            }
+        } else {
+            showStatus('❌ Error saving annotation', 'error');
+        }
+    } catch (error) {
+        console.error('Error saving annotation:', error);
+        showStatus('❌ Error saving annotation', 'error');
+    }
+}
+
+// Show notification pop-up
+function showStatus(message, type = 'info', duration = 3000) {
+    const popup = document.getElementById('notification-popup');
+    const messageEl = document.getElementById('notification-message');
+    const iconEl = document.getElementById('notification-icon');
+    
+    if (!popup || !messageEl || !iconEl) return;
+    
+    // Set message
+    messageEl.textContent = message;
+    
+    // Set icon based on type
+    const icons = {
+        'success': '✓',
+        'error': '✕',
+        'warning': '⚠',
+        'info': 'ℹ'
+    };
+    iconEl.textContent = icons[type] || icons['info'];
+    
+    // Set type class
+    popup.className = `notification-popup notification-${type} show`;
+    
+    // Auto-hide after duration
+    if (window.notificationTimeout) {
+        clearTimeout(window.notificationTimeout);
+    }
+    
+    window.notificationTimeout = setTimeout(() => {
+        hideStatus();
+    }, duration);
+}
+
+// Hide notification pop-up
+function hideStatus() {
+    const popup = document.getElementById('notification-popup');
+    if (popup) {
+        popup.classList.remove('show');
+    }
+}
+
+// Setup notification close button
+function setupNotificationListeners() {
+    const closeBtn = document.getElementById('notification-close');
+    const popup = document.getElementById('notification-popup');
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', hideStatus);
+    }
+    
+    // Click outside to close
+    if (popup) {
+        popup.addEventListener('click', (e) => {
+            if (e.target === popup) {
+                hideStatus();
+            }
+        });
+    }
+}
+
+// Login/Register functions
+function setupLoginListeners() {
+    const loginBtn = document.getElementById('login-btn');
+    const registerBtn = document.getElementById('register-btn');
+    const usernameInput = document.getElementById('username-input');
+    
+    loginBtn.addEventListener('click', handleLogin);
+    registerBtn.addEventListener('click', handleRegister);
+    
+    // Allow Enter key to login
+    usernameInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            handleLogin();
+        }
+    });
+}
+
+async function handleLogin() {
+    const username = document.getElementById('username-input').value.trim();
+    const errorDiv = document.getElementById('login-error');
+    
+    if (!username) {
+        showLoginError('Please enter a username');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            currentUsername = username;
+            localStorage.setItem('annotation_username', username);
+            hideLoginModal();
+            await initializeApp();
+        } else {
+            showLoginError(result.message || 'Login failed');
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        showLoginError('Error connecting to server');
+    }
+}
+
+async function handleRegister() {
+    const username = document.getElementById('username-input').value.trim();
+    
+    if (!username) {
+        showLoginError('Please enter a username');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/register_user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'success') {
+            currentUsername = username;
+            localStorage.setItem('annotation_username', username);
+            hideLoginModal();
+            await initializeApp();
+            showStatus(`Welcome, ${username}! Registration successful.`, 'success');
+        } else {
+            showLoginError(result.message || 'Registration failed');
+        }
+    } catch (error) {
+        console.error('Registration error:', error);
+        showLoginError('Error connecting to server');
+    }
+}
+
+function showLoginError(message) {
+    const errorDiv = document.getElementById('login-error');
+    errorDiv.textContent = message;
+    errorDiv.classList.remove('hidden');
+}
+
+function hideLoginModal() {
+    const modal = document.getElementById('login-modal');
+    modal.classList.remove('show');
+}
+
+function updateUserBadge() {
+    const badge = document.getElementById('user-badge');
+    if (currentUsername) {
+        badge.innerHTML = `
+            <span class="user-icon">👤</span>
+            <span class="username-text">${currentUsername}</span>
+            <button class="logout-btn" onclick="handleLogout()">Logout</button>
+        `;
+    }
+}
+
+function handleLogout() {
+    if (confirm('Are you sure you want to logout? Any unsaved work will be lost.')) {
+        localStorage.removeItem('annotation_username');
+        location.reload();
+    }
+}
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', init);
+

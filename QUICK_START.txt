@@ -1,0 +1,209 @@
+╔════════════════════════════════════════════════════════════════════╗
+║         ESC-ToM Annotation Tool - Quick Start Commands            ║
+╚════════════════════════════════════════════════════════════════════╝
+
+📁 FILES CREATED
+════════════════════════════════════════════════════════════════════
+
+✅ Core Application Files:
+   - index.html              Main application page
+   - styles/style.css        Application styling
+   - scripts/script.js       Application logic
+   - data/dialogues.json     Sample dialogue data
+   - data/cognitive_dimensions.json  Cognitive appraisals
+
+✅ Documentation Files:
+   - README.md               Project documentation
+   - SETUP.md                Deployment instructions
+   - VERIFICATION.md         Testing checklist
+   - ANNOTATOR_GUIDE.md      Annotator manual
+   - SUMMARY.md              Implementation overview
+   - QUICK_START.txt         This file
+   - .gitignore              Git ignore rules
+
+════════════════════════════════════════════════════════════════════
+
+🧪 TEST LOCALLY (Optional)
+════════════════════════════════════════════════════════════════════
+
+cd /Users/seacow/Documents/github/esc-tom.github.io
+python3 -m http.server 8000
+
+Then open: http://localhost:8000
+
+════════════════════════════════════════════════════════════════════
+
+📤 DEPLOY TO GITHUB PAGES
+════════════════════════════════════════════════════════════════════
+
+Step 1: Check Status
+────────────────────────────────────────────────────────────────────
+cd /Users/seacow/Documents/github/esc-tom.github.io
+git status
+
+Step 2: Add Files
+────────────────────────────────────────────────────────────────────
+git add index.html README.md SETUP.md VERIFICATION.md SUMMARY.md
+git add ANNOTATOR_GUIDE.md QUICK_START.txt .gitignore
+git add styles/ scripts/ data/
+
+Step 3: Commit
+────────────────────────────────────────────────────────────────────
+git commit -m "Setup GitHub Pages annotation tool
+
+- Created static version of Flask annotation app
+- Added HTML, CSS, and JavaScript files
+- Included sample dialogue data
+- Added comprehensive documentation
+- Ready for deployment to GitHub Pages"
+
+Step 4: Push
+────────────────────────────────────────────────────────────────────
+git push origin main
+
+Step 5: Enable GitHub Pages
+────────────────────────────────────────────────────────────────────
+1. Go to: https://github.com/[your-username]/esc-tom.github.io/settings/pages
+2. Under "Source", select branch: main
+3. Under "Folder", select: / (root)
+4. Click "Save"
+5. Wait 1-2 minutes
+6. Visit: https://[your-username].github.io/
+
+════════════════════════════════════════════════════════════════════
+
+📊 ADD YOUR DATA
+════════════════════════════════════════════════════════════════════
+
+Edit the dialogue data file:
+────────────────────────────────────────────────────────────────────
+nano data/dialogues.json
+
+Or use your preferred editor:
+────────────────────────────────────────────────────────────────────
+code data/dialogues.json    # VS Code
+vim data/dialogues.json     # Vim
+open -a TextEdit data/dialogues.json  # TextEdit (Mac)
+
+Format:
+────────────────────────────────────────────────────────────────────
+{
+  "dialogue_id": {
+    "entry_id": "dialogue_id",
+    "persona_profile": {
+      "name": "Patient Name",
+      "gender": "female/male",
+      "education": "education level",
+      "occupation": "occupation",
+      "traits": "personality traits (include Big Five)"
+    },
+    "dialogue_history": [
+      {"speaker": "patient", "utterance": "..."},
+      {"speaker": "therapist", "utterance": "..."}
+    ]
+  }
+}
+
+After editing, commit and push:
+────────────────────────────────────────────────────────────────────
+git add data/dialogues.json
+git commit -m "Added dialogue data"
+git push origin main
+
+Changes go live in 1-2 minutes!
+
+════════════════════════════════════════════════════════════════════
+
+✅ VALIDATION COMMANDS
+════════════════════════════════════════════════════════════════════
+
+Validate JSON syntax:
+────────────────────────────────────────────────────────────────────
+python3 -m json.tool data/dialogues.json
+python3 -m json.tool data/cognitive_dimensions.json
+
+Check file structure:
+────────────────────────────────────────────────────────────────────
+ls -la
+ls -la data/
+ls -la styles/
+ls -la scripts/
+
+════════════════════════════════════════════════════════════════════
+
+📥 EXPORT ANNOTATOR DATA
+════════════════════════════════════════════════════════════════════
+
+Provide annotators with this JavaScript code to run in browser console (F12):
+
+const username = localStorage.getItem('annotation_username');
+const annotations = {};
+for (let i = 0; i < localStorage.length; i++) {
+  const key = localStorage.key(i);
+  if (key.startsWith(`annotation_data_${username}_`)) {
+    const dialogueId = key.replace(`annotation_data_${username}_`, '');
+    annotations[dialogueId] = JSON.parse(localStorage.getItem(key));
+  }
+}
+console.log(JSON.stringify(annotations, null, 2));
+
+They should copy the output and save as: annotations_[username]_[date].json
+
+════════════════════════════════════════════════════════════════════
+
+📚 DOCUMENTATION QUICK REFERENCE
+════════════════════════════════════════════════════════════════════
+
+For You:
+   README.md        - Project overview and features
+   SETUP.md         - Deployment step-by-step guide  
+   VERIFICATION.md  - Complete testing checklist
+   SUMMARY.md       - Implementation details and comparison
+
+For Annotators:
+   ANNOTATOR_GUIDE.md - Complete user manual with screenshots
+   
+Share URL: https://[your-username].github.io/[repo-name]/
+
+════════════════════════════════════════════════════════════════════
+
+🐛 TROUBLESHOOTING
+════════════════════════════════════════════════════════════════════
+
+Page not loading?
+   - Wait 2-3 minutes after enabling GitHub Pages
+   - Check GitHub Actions tab for deployment status
+   - Try hard refresh: Ctrl+Shift+R (Cmd+Shift+R on Mac)
+
+Dialogues not appearing?
+   - Validate JSON: python3 -m json.tool data/dialogues.json
+   - Check browser console (F12) for errors
+   - Verify file paths in index.html
+
+Data not saving?
+   - Check browser localStorage is enabled
+   - Check browser console for errors
+   - Try different browser
+
+════════════════════════════════════════════════════════════════════
+
+📞 NEXT STEPS
+════════════════════════════════════════════════════════════════════
+
+1. ⬜ Test locally (optional)
+2. ⬜ Review documentation
+3. ⬜ Commit and push to GitHub
+4. ⬜ Enable GitHub Pages
+5. ⬜ Replace sample data with real dialogues
+6. ⬜ Test live site thoroughly
+7. ⬜ Share URL with annotators
+8. ⬜ Set up data collection process
+
+════════════════════════════════════════════════════════════════════
+
+🎉 YOU'RE ALL SET!
+
+The annotation tool is ready to deploy. Good luck with your research!
+
+════════════════════════════════════════════════════════════════════
+
