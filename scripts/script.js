@@ -660,13 +660,20 @@ function loadGroundTruth() {
         selectedAppraisals = [];
         gt.cognitive_appraisals.forEach(dimensionKey => {
             // Find the dimension in cognitiveDimensions
-            const dimension = cognitiveDimensions.find(d => d.key === dimensionKey);
+            const dimension = cognitiveDimensions.find(d => {
+                const key = Object.keys(d)[0];
+                return key === dimensionKey;
+            });
             if (dimension) {
+                const key = Object.keys(dimension)[0];
+                const description = Object.values(dimension)[0];
                 selectedAppraisals.push({
-                    dimension: dimension.key,
-                    description: dimension.description,
+                    dimension: key,
+                    description: description,
                     intensity: 5 // Default intensity
                 });
+            } else {
+                console.warn(`Ground truth dimension "${dimensionKey}" not found in cognitive_dimensions.json`);
             }
         });
         renderSelectedAppraisals();

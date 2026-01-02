@@ -39,9 +39,10 @@
       "desire": "I want to be seen as capable and competent by my colleagues",
       "intention": "I will try to avoid making mistakes that would expose my inadequacy",
       "cognitive_appraisals": [
-        "Threat",
-        "Self-accountability",
-        "Low control"
+        "goal_incongruence",
+        "self_cause",
+        "other_control",
+        "unacceptable_consequences"
       ]
     }
   },
@@ -77,9 +78,10 @@
       "desire": "I want a harmonious and understanding relationship with my partner",
       "intention": "I need to figure out if this relationship can be saved or if I should end it",
       "cognitive_appraisals": [
-        "Threat",
-        "Low control",
-        "Negative outcome likelihood"
+        "goal_incongruence",
+        "other_control",
+        "unpredictability_of_consequences",
+        "unacceptable_consequences"
       ]
     }
   }
