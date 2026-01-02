@@ -112,6 +112,10 @@ async function storePasswordHash(username, password) {
 
 // Initialize
 async function init() {
+    // Load dialogues first (needed for registration sampling)
+    await loadDialogues();
+    await loadCognitiveDimensions();
+    
     // Check if user is already logged in
     const savedUsername = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
     if (savedUsername) {
@@ -124,8 +128,7 @@ async function init() {
         hideLoginModal();
         await initializeApp();
     } else {
-        // Show login modal and load users
-        await loadUsers();
+        // Show login modal
         setupLoginListeners();
     }
 }
@@ -133,8 +136,17 @@ async function init() {
 // Initialize the main app after login
 async function initializeApp() {
     updateUserBadge();
-    await loadDialogues();
-    await loadCognitiveDimensions();
+    
+    // Load dialogues if not already loaded (e.g., during direct login from saved session)
+    if (allDialogues.length === 0) {
+        await loadDialogues();
+        await loadCognitiveDimensions();
+    } else {
+        // Dialogues already loaded, just load assigned dialogues for this user
+        await loadAssignedDialogues();
+        populateDialogueSelector();
+    }
+    
     setupEventListeners();
     setupNotificationListeners();
     await checkAnnotationProgress();
@@ -146,43 +158,6 @@ async function initializeApp() {
         dialogueSelect.value = indexToLoad;
         await handleDialogueChange();
     }
-}
-
-// Load existing users from Firebase
-async function loadUsers() {
-    try {
-        if (!firebaseReady) {
-            await initFirebaseStorage();
-        }
-
-        const users = await firebaseStorage.getAllUsers();
-        displayUsers(users);
-    } catch (error) {
-        console.error('Error loading users:', error);
-        document.getElementById('user-list').innerHTML = 
-            '<p class="error-text">Error loading users from Firebase</p>';
-    }
-}
-
-// Display user list
-function displayUsers(users) {
-    const userList = document.getElementById('user-list');
-    
-    if (users.length === 0) {
-        userList.innerHTML = '<p class="no-users">No existing users. Register a new one!</p>';
-        return;
-    }
-    
-    userList.innerHTML = '';
-    users.forEach(username => {
-        const userBtn = document.createElement('button');
-        userBtn.className = 'user-button';
-        userBtn.textContent = username;
-        userBtn.addEventListener('click', () => {
-            document.getElementById('username-input').value = username;
-        });
-        userList.appendChild(userBtn);
-    });
 }
 
 // Load all dialogues from JSON file
@@ -235,9 +210,8 @@ async function loadDialogues() {
         // Load assigned dialogues for current user if logged in
         if (currentUsername && firebaseReady) {
             await loadAssignedDialogues();
+            populateDialogueSelector();
         }
-        
-        populateDialogueSelector();
     } catch (error) {
         console.error('Error loading dialogues:', error);
         showStatus('Error loading eval data. Make sure data/eval_data.json exists.', 'error');
@@ -262,6 +236,12 @@ async function loadAssignedDialogues() {
 // Sample N dialogues without replacement
 async function sampleDialogues(n, excludeIds = []) {
     try {
+        // Ensure dialogues are loaded
+        if (allDialogues.length === 0) {
+            console.error('❌ Cannot sample dialogues: allDialogues is empty!');
+            throw new Error('Dialogues not loaded. Please refresh the page.');
+        }
+        
         if (!firebaseReady) {
             await initFirebaseStorage();
         }
@@ -280,6 +260,10 @@ async function sampleDialogues(n, excludeIds = []) {
             console.warn(`⚠️ Only ${availableDialogues.length} dialogues available, requested ${n}`);
         }
         
+        if (availableDialogues.length === 0) {
+            throw new Error('No available dialogues to assign. All dialogues may be already assigned.');
+        }
+        
         // Shuffle and take first n
         const shuffled = availableDialogues.sort(() => Math.random() - 0.5);
         const sampled = shuffled.slice(0, Math.min(n, shuffled.length));
@@ -287,9 +271,7 @@ async function sampleDialogues(n, excludeIds = []) {
         return sampled.map(d => d.entry_id);
     } catch (error) {
         console.error('Error sampling dialogues:', error);
-        // Fallback: random sampling from all dialogues
-        const shuffled = allDialogues.sort(() => Math.random() - 0.5);
-        return shuffled.slice(0, n).map(d => d.entry_id);
+        throw error; // Re-throw to let caller handle it
     }
 }
 

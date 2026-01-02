@@ -1637,49 +1637,6 @@ header h1 {
     font-size: 14px;
 }
 
-.user-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 16px;
-    background: var(--bg-secondary);
-    border-radius: var(--radius-lg);
-    min-height: 60px;
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-.user-button {
-    padding: 8px 16px;
-    background: white;
-    border: 2px solid var(--border-color);
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-primary);
-    transition: all 0.2s ease;
-}
-
-.user-button:hover {
-    background: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(99, 102, 241, 0.3);
-}
-
-.loading-users, .no-users, .error-text {
-    text-align: center;
-    color: var(--text-secondary);
-    padding: 20px;
-    font-size: 14px;
-}
-
-.error-text {
-    color: var(--danger-color);
-}
-
 .login-error {
     padding: 12px 16px;
     background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
