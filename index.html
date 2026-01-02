@@ -19,8 +19,12 @@
                 <!-- Username Input -->
                 <div class="form-group">
                     <label for="username-input">Username:</label>
-                    <input type="text" id="username-input" class="login-input" placeholder="Enter username (3-20 characters)" maxlength="20">
+                    <div class="input-with-status">
+                        <input type="text" id="username-input" class="login-input" placeholder="Enter username (3-20 characters)" maxlength="20">
+                        <span id="username-status" class="username-status"></span>
+                    </div>
                     <p class="help-text">Only letters, numbers, underscore, and hyphen allowed</p>
+                    <p id="username-availability" class="username-availability"></p>
                 </div>
                 
                 <!-- Password Input -->

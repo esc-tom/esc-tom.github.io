@@ -987,6 +987,56 @@ header h1 {
     margin-bottom: 15px;
 }
 
+/* Username availability check */
+.input-with-status {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-with-status input {
+    flex: 1;
+    padding-right: 35px;
+}
+
+.username-status {
+    position: absolute;
+    right: 10px;
+    font-size: 18px;
+    pointer-events: none;
+}
+
+.username-status.checking {
+    color: #3498db;
+}
+
+.username-status.available {
+    color: #27ae60;
+}
+
+.username-status.taken {
+    color: #e74c3c;
+}
+
+.username-availability {
+    font-size: 13px;
+    margin-top: 5px;
+    min-height: 18px;
+    font-weight: 500;
+}
+
+.username-availability.available {
+    color: #27ae60;
+}
+
+.username-availability.taken {
+    color: #e74c3c;
+}
+
+.username-availability.checking {
+    color: #3498db;
+}
+
 .appraisal-options {
     display: grid;
     grid-template-columns: repeat(3, 1fr);

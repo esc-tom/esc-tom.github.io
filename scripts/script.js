@@ -1254,6 +1254,78 @@ function setupNotificationListeners() {
 }
 
 // Login/Register functions
+// Debounce helper for username checking
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Check username availability with visual feedback
+async function checkUsernameAvailability(username) {
+    const statusIcon = document.getElementById('username-status');
+    const availabilityText = document.getElementById('username-availability');
+    
+    // Clear previous status
+    statusIcon.className = 'username-status';
+    availabilityText.className = 'username-availability';
+    statusIcon.textContent = '';
+    availabilityText.textContent = '';
+    
+    // Don't check if username is too short
+    if (!username || username.length < 3) {
+        return;
+    }
+    
+    // Validate username format
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+        statusIcon.className = 'username-status taken';
+        statusIcon.textContent = '✗';
+        availabilityText.className = 'username-availability taken';
+        availabilityText.textContent = 'Invalid characters';
+        return;
+    }
+    
+    // Show checking state
+    statusIcon.className = 'username-status checking';
+    statusIcon.textContent = '⋯';
+    availabilityText.className = 'username-availability checking';
+    availabilityText.textContent = 'Checking availability...';
+    
+    try {
+        if (!firebaseReady) {
+            await initFirebaseStorage();
+        }
+        
+        const isTaken = await firebaseStorage.isUsernameTaken(username);
+        
+        if (isTaken) {
+            statusIcon.className = 'username-status taken';
+            statusIcon.textContent = '✗';
+            availabilityText.className = 'username-availability taken';
+            availabilityText.textContent = 'Username already taken';
+        } else {
+            statusIcon.className = 'username-status available';
+            statusIcon.textContent = '✓';
+            availabilityText.className = 'username-availability available';
+            availabilityText.textContent = 'Username available';
+        }
+    } catch (error) {
+        console.error('Error checking username:', error);
+        statusIcon.textContent = '';
+        availabilityText.textContent = '';
+    }
+}
+
+// Debounced version for real-time checking (500ms delay)
+const debouncedUsernameCheck = debounce(checkUsernameAvailability, 500);
+
 function setupLoginListeners() {
     const loginBtn = document.getElementById('login-btn');
     const registerBtn = document.getElementById('register-btn');
@@ -1262,18 +1334,51 @@ function setupLoginListeners() {
     const confirmPasswordGroup = document.getElementById('confirm-password-group');
     const confirmPasswordInput = document.getElementById('confirm-password-input');
     
+    // Real-time username availability check (only when registering)
+    usernameInput.addEventListener('input', (e) => {
+        // Only check if confirm password is visible (i.e., in register mode)
+        if (confirmPasswordGroup.style.display === 'block') {
+            debouncedUsernameCheck(e.target.value.trim());
+        } else {
+            // Clear status when in login mode
+            const statusIcon = document.getElementById('username-status');
+            const availabilityText = document.getElementById('username-availability');
+            statusIcon.className = 'username-status';
+            statusIcon.textContent = '';
+            availabilityText.className = 'username-availability';
+            availabilityText.textContent = '';
+        }
+    });
+    
     // Show confirm password field when Register button is focused/hovered
     registerBtn.addEventListener('mouseenter', () => {
         confirmPasswordGroup.style.display = 'block';
+        // Check username when switching to register mode
+        const username = usernameInput.value.trim();
+        if (username.length >= 3) {
+            debouncedUsernameCheck(username);
+        }
     });
     
     registerBtn.addEventListener('focus', () => {
         confirmPasswordGroup.style.display = 'block';
+        // Check username when switching to register mode
+        const username = usernameInput.value.trim();
+        if (username.length >= 3) {
+            debouncedUsernameCheck(username);
+        }
     });
     
-    // Hide confirm password when clicking Login
+    // Hide confirm password and clear username status when clicking Login
     loginBtn.addEventListener('click', () => {
         confirmPasswordGroup.style.display = 'none';
+        // Clear username status
+        const statusIcon = document.getElementById('username-status');
+        const availabilityText = document.getElementById('username-availability');
+        statusIcon.className = 'username-status';
+        statusIcon.textContent = '';
+        availabilityText.className = 'username-availability';
+        availabilityText.textContent = '';
         handleLogin();
     });
     
@@ -1344,8 +1449,32 @@ async function handleRegister() {
     const password = document.getElementById('password-input').value;
     const confirmPassword = document.getElementById('confirm-password-input').value;
     
+    // Validate inputs
     if (!username || !password) {
         showLoginError('Please enter username and password');
+        return;
+    }
+    
+    // Validate username length
+    if (username.length < 3) {
+        showLoginError('Username must be at least 3 characters');
+        return;
+    }
+    
+    if (username.length > 20) {
+        showLoginError('Username must be at most 20 characters');
+        return;
+    }
+    
+    // Validate username format
+    if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
+        showLoginError('Username can only contain letters, numbers, underscore, and hyphen');
+        return;
+    }
+    
+    // Validate password
+    if (password.length < 6) {
+        showLoginError('Password must be at least 6 characters');
         return;
     }
     
@@ -1354,16 +1483,19 @@ async function handleRegister() {
         return;
     }
     
-    if (password.length < 6) {
-        showLoginError('Password must be at least 6 characters');
-        return;
-    }
-    
     try {
         if (!firebaseReady) {
             await initFirebaseStorage();
         }
 
+        // Pre-check if username is already taken
+        const isTaken = await firebaseStorage.isUsernameTaken(username);
+        if (isTaken) {
+            showLoginError('Username already taken. Please choose another one.');
+            return;
+        }
+
+        // Attempt registration
         const result = await firebaseStorage.registerUser(username, password);
         
         if (!result.success) {

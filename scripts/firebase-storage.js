@@ -168,6 +168,26 @@ class FirebaseStorage {
     }
 
     /**
+     * Check if username is already taken
+     * @param {string} username - Username to check
+     * @returns {Promise<boolean>} - True if username exists, false if available
+     */
+    async isUsernameTaken(username) {
+        try {
+            const email = `${username}@annotation.local`;
+            const methods = await this.auth.fetchSignInMethodsForEmail(email);
+            return methods.length > 0; // If methods exist, username is taken
+        } catch (error) {
+            // If error is "user not found", username is available
+            if (error.code === 'auth/user-not-found') {
+                return false;
+            }
+            console.error('Error checking username:', error);
+            return false; // On error, assume available to not block registration
+        }
+    }
+
+    /**
      * Save annotation to Firestore
      * @param {string} username - Current username
      * @param {string} dialogueId - Dialogue ID
