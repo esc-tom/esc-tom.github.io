@@ -11,33 +11,21 @@
     <div id="login-modal" class="modal login-modal show">
         <div class="modal-content login-modal-content">
             <div class="modal-header">
-                <h3>👤 Welcome to ESC-ToM Annotation Tool</h3>
+                <h3>👤 Login to ESC-ToM Annotation Tool</h3>
             </div>
             <div class="modal-body">
-                <p class="login-instruction">Please log in or register. Your password protects your annotations.</p>
+                <p class="login-instruction">Welcome back! Enter your credentials to continue annotating.</p>
                 
                 <!-- Username Input -->
                 <div class="form-group">
-                    <label for="username-input">Username:</label>
-                    <div class="input-with-status">
-                        <input type="text" id="username-input" class="login-input" placeholder="Enter username (3-20 characters)" maxlength="20">
-                        <span id="username-status" class="username-status"></span>
-                    </div>
-                    <p class="help-text">Only letters, numbers, underscore, and hyphen allowed</p>
-                    <p id="username-availability" class="username-availability"></p>
+                    <label for="login-username-input">Username:</label>
+                    <input type="text" id="login-username-input" class="login-input" placeholder="Enter your username" maxlength="20" autocomplete="username">
                 </div>
                 
                 <!-- Password Input -->
                 <div class="form-group">
-                    <label for="password-input">Password:</label>
-                    <input type="password" id="password-input" class="login-input" placeholder="Enter password (min 6 characters)">
-                    <p class="help-text">Choose a secure password to protect your annotations</p>
-                </div>
-                
-                <!-- Confirm Password (for registration) -->
-                <div class="form-group" id="confirm-password-group" style="display: none;">
-                    <label for="confirm-password-input">Confirm Password:</label>
-                    <input type="password" id="confirm-password-input" class="login-input" placeholder="Re-enter password">
+                    <label for="login-password-input">Password:</label>
+                    <input type="password" id="login-password-input" class="login-input" placeholder="Enter your password" autocomplete="current-password">
                 </div>
                 
                 <!-- Existing Users -->
@@ -51,8 +39,50 @@
                 <div id="login-error" class="login-error hidden"></div>
             </div>
             <div class="modal-footer">
-                <button id="register-btn" class="btn btn-primary">Register New User</button>
-                <button id="login-btn" class="btn btn-success">Login</button>
+                <button id="login-btn" class="btn btn-success btn-large">Login</button>
+                <p class="modal-link">Don't have an account? <a href="#" id="show-register-link">Register here</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Register Modal -->
+    <div id="register-modal" class="modal login-modal">
+        <div class="modal-content login-modal-content">
+            <div class="modal-header">
+                <h3>📝 Register for ESC-ToM Annotation Tool</h3>
+            </div>
+            <div class="modal-body">
+                <p class="login-instruction">Create a new account. You'll be assigned 10 unique dialogues to annotate.</p>
+                
+                <!-- Username Input -->
+                <div class="form-group">
+                    <label for="register-username-input">Username:</label>
+                    <div class="input-with-status">
+                        <input type="text" id="register-username-input" class="login-input" placeholder="Choose a username (3-20 characters)" maxlength="20" autocomplete="username">
+                        <span id="register-username-status" class="username-status"></span>
+                    </div>
+                    <p class="help-text">Only letters, numbers, underscore, and hyphen allowed</p>
+                    <p id="register-username-availability" class="username-availability"></p>
+                </div>
+                
+                <!-- Password Input -->
+                <div class="form-group">
+                    <label for="register-password-input">Password:</label>
+                    <input type="password" id="register-password-input" class="login-input" placeholder="Choose a password (min 6 characters)" autocomplete="new-password">
+                    <p class="help-text">Choose a secure password to protect your annotations</p>
+                </div>
+                
+                <!-- Confirm Password -->
+                <div class="form-group">
+                    <label for="register-confirm-password-input">Confirm Password:</label>
+                    <input type="password" id="register-confirm-password-input" class="login-input" placeholder="Re-enter your password" autocomplete="new-password">
+                </div>
+                
+                <div id="register-error" class="login-error hidden"></div>
+            </div>
+            <div class="modal-footer">
+                <button id="register-btn" class="btn btn-primary btn-large">Register New User</button>
+                <p class="modal-link">Already have an account? <a href="#" id="show-login-link">Login here</a></p>
             </div>
         </div>
     </div>
@@ -132,6 +162,18 @@
                     </div>
                 </div>
                 
+                <!-- Situation and Thought Context -->
+                <div id="context-section" class="context-section" style="display: none;">
+                    <div class="context-box">
+                        <h4>Situation:</h4>
+                        <p id="context-situation" class="context-text"></p>
+                    </div>
+                    <div class="context-box">
+                        <h4>Patient's Thought:</h4>
+                        <p id="context-thought" class="context-text"></p>
+                    </div>
+                </div>
+                
                 <div id="dialogue-container" class="dialogue-container">
                     <p class="placeholder">Loading first dialogue...</p>
                 </div>
@@ -194,7 +236,7 @@
                         Cognitive Appraisals
                     </h3>
                     <div class="section-content" id="appraisals-content">
-                        <p class="help-text">Ground truth appraisals are pre-selected. Modify selections and intensity scores (1-5) as needed. Drag to reorder by importance.</p>
+                        <p class="help-text">Ground truth appraisals are pre-selected. Modify selections as needed. Drag to reorder by importance.</p>
                         
                         <div class="appraisal-selector">
                             <label>Available Dimensions (click to select):</label>

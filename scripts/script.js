@@ -33,7 +33,8 @@ async function initFirebaseStorage() {
 
 // Global state
 let currentUsername = null; // Current logged-in user
-let allDialogues = [];
+let allDialogues = []; // All available dialogues from dataset
+let assignedDialogues = []; // Dialogue IDs assigned to current user
 let currentDialogue = null;
 let currentTurnIndex = 0;
 let cognitiveDimensions = [];
@@ -42,6 +43,7 @@ let readyToAnnotateTurn = null; // Tracks when user clicked "Ready to Annotate"
 let minContextTurnIndex = null; // Tracks which turn provides minimum necessary context
 let modifiedUtterances = {}; // Track modified utterances { turnIndex: newUtterance }
 const MAX_APPRAISALS = 5;
+const DIALOGUES_PER_USER = 10; // Number of dialogues to assign per user
 
 // DOM Elements
 const dialogueSelect = document.getElementById('dialogue-select');
@@ -114,6 +116,11 @@ async function init() {
     const savedUsername = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
     if (savedUsername) {
         currentUsername = savedUsername;
+        // Initialize Firebase to verify user session
+        if (!firebaseReady) {
+            await initFirebaseStorage();
+        }
+        // Load assigned dialogues will be called in initializeApp > loadDialogues
         hideLoginModal();
         await initializeApp();
     } else {
@@ -181,15 +188,25 @@ function displayUsers(users) {
 // Load all dialogues from JSON file
 async function loadDialogues() {
     try {
-        const response = await fetch('data/dialogues.json');
+        const response = await fetch('data/eval_data.json');
         const data = await response.json();
+        
+        console.log(`📊 Loading ${Object.keys(data).length} evaluation dialogues...`);
         
         // Transform dictionary format to array format expected by frontend
         allDialogues = [];
         for (const [entryId, entryData] of Object.entries(data)) {
+            // Transform dialogue_history: convert "content" to "utterance"
+            const transformedHistory = (entryData.dialogue_history || []).map(turn => ({
+                speaker: turn.speaker.toLowerCase(), // Convert "Patient"/"Therapist" to lowercase
+                utterance: turn.content
+            }));
+            
             const dialogue = {
                 'entry_id': entryId,
-                'dialogue_history': entryData.dialogue_history || []
+                'dialogue_history': transformedHistory,
+                'situation': entryData.situation || '',
+                'thought': entryData.thought || ''
             };
             
             // Include persona_profile if available
@@ -197,13 +214,82 @@ async function loadDialogues() {
                 dialogue['persona_profile'] = entryData.persona_profile;
             }
             
+            // Extract ground truth from BDI and cognitive appraisals
+            if (entryData.bdi || entryData.cogapp_dims) {
+                dialogue['ground_truth'] = {
+                    belief: entryData.bdi?.belief?.content || '',
+                    desire: entryData.bdi?.desire?.content || '',
+                    intention: entryData.bdi?.intention?.content || '',
+                    cognitive_appraisals: (entryData.cogapp_dims || [])
+                        .sort((a, b) => a.rank - b.rank) // Sort by rank
+                        .slice(0, 5) // Top 5
+                        .map(dim => dim.appraisal_name)
+                };
+            }
+            
             allDialogues.push(dialogue);
+        }
+        
+        console.log(`✅ Loaded ${allDialogues.length} dialogues with ground truth`);
+        
+        // Load assigned dialogues for current user if logged in
+        if (currentUsername && firebaseReady) {
+            await loadAssignedDialogues();
         }
         
         populateDialogueSelector();
     } catch (error) {
         console.error('Error loading dialogues:', error);
-        showStatus('Error loading dialogues. Make sure data/dialogues.json exists.', 'error');
+        showStatus('Error loading eval data. Make sure data/eval_data.json exists.', 'error');
+    }
+}
+
+// Load assigned dialogues for current user
+async function loadAssignedDialogues() {
+    try {
+        if (!firebaseReady) {
+            await initFirebaseStorage();
+        }
+        
+        assignedDialogues = await firebaseStorage.getAssignedDialogues();
+        console.log(`📋 Loaded ${assignedDialogues.length} assigned dialogues for ${currentUsername}`);
+    } catch (error) {
+        console.error('Error loading assigned dialogues:', error);
+        assignedDialogues = [];
+    }
+}
+
+// Sample N dialogues without replacement
+async function sampleDialogues(n, excludeIds = []) {
+    try {
+        if (!firebaseReady) {
+            await initFirebaseStorage();
+        }
+        
+        // Get all already assigned dialogues to avoid duplicates
+        const alreadyAssigned = await firebaseStorage.getAllAssignedDialogues();
+        
+        // Filter out already assigned dialogues
+        const availableDialogues = allDialogues.filter(d => 
+            !alreadyAssigned.includes(d.entry_id) && !excludeIds.includes(d.entry_id)
+        );
+        
+        console.log(`🎲 Sampling ${n} from ${availableDialogues.length} available dialogues (${alreadyAssigned.length} already assigned)`);
+        
+        if (availableDialogues.length < n) {
+            console.warn(`⚠️ Only ${availableDialogues.length} dialogues available, requested ${n}`);
+        }
+        
+        // Shuffle and take first n
+        const shuffled = availableDialogues.sort(() => Math.random() - 0.5);
+        const sampled = shuffled.slice(0, Math.min(n, shuffled.length));
+        
+        return sampled.map(d => d.entry_id);
+    } catch (error) {
+        console.error('Error sampling dialogues:', error);
+        // Fallback: random sampling from all dialogues
+        const shuffled = allDialogues.sort(() => Math.random() - 0.5);
+        return shuffled.slice(0, n).map(d => d.entry_id);
     }
 }
 
@@ -232,16 +318,21 @@ async function checkAnnotationProgress() {
     try {
         const annotatedDialogues = await firebaseStorage.getUserAnnotations();
         
+        // Check annotation status for all dialogues
         for (let i = 0; i < allDialogues.length; i++) {
             const dialogue = allDialogues[i];
             const isAnnotated = annotatedDialogues.includes(dialogue.entry_id);
             annotationStatus[dialogue.entry_id] = isAnnotated;
-            if (isAnnotated) {
+            
+            // Only count if it's in the user's assigned dialogues
+            if (isAnnotated && (assignedDialogues.length === 0 || assignedDialogues.includes(dialogue.entry_id))) {
                 annotatedCount++;
             }
         }
         
-        console.log(`📊 Progress: ${annotatedCount}/${allDialogues.length} dialogues annotated`);
+        // Show progress relative to assigned dialogues
+        const totalToAnnotate = assignedDialogues.length > 0 ? assignedDialogues.length : allDialogues.length;
+        console.log(`📊 Progress: ${annotatedCount}/${totalToAnnotate} dialogues annotated`);
     } catch (error) {
         console.error('Error checking progress:', error);
     }
@@ -268,19 +359,55 @@ function updateProgressBar(completed, total) {
 async function findFirstUnannotatedDialogue() {
     for (let i = 0; i < allDialogues.length; i++) {
         const dialogue = allDialogues[i];
+        
+        // Only consider dialogues that are assigned to the current user
+        if (assignedDialogues.length > 0 && !assignedDialogues.includes(dialogue.entry_id)) {
+            continue; // Skip dialogues not assigned to this user
+        }
+        
         if (!annotationStatus[dialogue.entry_id]) {
-            return i;
+            return i; // Return index in allDialogues array
         }
     }
-    return -1; // All annotated
+    return -1; // All assigned dialogues annotated
 }
 
 // Populate dialogue selector dropdown
 function populateDialogueSelector() {
     dialogueSelect.innerHTML = '<option value="">-- Select a Dialogue --</option>';
-    allDialogues.forEach((dialogue, index) => {
+    
+    // Only show assigned dialogues if user is logged in and has assignments
+    let dialoguesToShow = allDialogues;
+    
+    if (currentUsername) {
+        if (assignedDialogues.length > 0) {
+            // Filter to show only assigned dialogues
+            dialoguesToShow = allDialogues.filter(d => assignedDialogues.includes(d.entry_id));
+            console.log(`📊 Showing ${dialoguesToShow.length} assigned dialogues for ${currentUsername}`);
+        } else {
+            // User is logged in but has no assignments (shouldn't happen, but defensive)
+            console.warn(`⚠️ User ${currentUsername} has no assigned dialogues!`);
+            dialoguesToShow = [];
+        }
+    } else {
+        // No user logged in - show all dialogues (shouldn't reach here in normal flow)
+        console.log(`📊 Showing all ${allDialogues.length} dialogues (no user logged in)`);
+    }
+    
+    if (dialoguesToShow.length === 0) {
         const option = document.createElement('option');
-        option.value = index;
+        option.value = '';
+        option.textContent = '-- No dialogues assigned --';
+        option.disabled = true;
+        dialogueSelect.appendChild(option);
+        return;
+    }
+    
+    dialoguesToShow.forEach((dialogue, displayIndex) => {
+        const option = document.createElement('option');
+        // Store actual index in allDialogues array
+        const actualIndex = allDialogues.findIndex(d => d.entry_id === dialogue.entry_id);
+        option.value = actualIndex;
         const isAnnotated = annotationStatus[dialogue.entry_id];
         const marker = isAnnotated ? '✓ ' : '';
         option.textContent = `${marker}${dialogue.entry_id} (${dialogue.dialogue_history.length} turns)`;
@@ -380,6 +507,9 @@ async function handleDialogueChange() {
     // Update dialogue info
     updateDialogueInfo();
     
+    // Display context (situation and thought)
+    displayContext();
+    
     // Display persona information
     displayPersonaInfo();
     
@@ -440,6 +570,30 @@ function parseBigFiveTraits(traitsText) {
     }
     
     return traits;
+}
+
+// Display context (situation and thought)
+function displayContext() {
+    const contextSection = document.getElementById('context-section');
+    const situationEl = document.getElementById('context-situation');
+    const thoughtEl = document.getElementById('context-thought');
+    
+    if (!currentDialogue || (!currentDialogue.situation && !currentDialogue.thought)) {
+        contextSection.style.display = 'none';
+        return;
+    }
+    
+    // Display situation
+    if (currentDialogue.situation) {
+        situationEl.textContent = currentDialogue.situation;
+    }
+    
+    // Display thought
+    if (currentDialogue.thought) {
+        thoughtEl.textContent = currentDialogue.thought;
+    }
+    
+    contextSection.style.display = 'block';
 }
 
 // Display persona information
@@ -638,26 +792,32 @@ async function saveAnnotationToStorage(entryId, annotation) {
 // Load ground truth and pre-populate annotation fields
 function loadGroundTruth() {
     if (!currentDialogue || !currentDialogue.ground_truth) {
-        console.log('No ground truth available for this dialogue');
+        console.log('⚠️ No ground truth available for this dialogue');
         return;
     }
     
     const gt = currentDialogue.ground_truth;
+    console.log('🔄 Loading ground truth:', gt);
     
     // Pre-populate BDI fields (strip prefixes if they exist)
     if (gt.belief) {
         beliefInput.value = stripPrefix('belief', gt.belief);
+        console.log('  ✓ Belief loaded:', beliefInput.value);
     }
     if (gt.desire) {
         desireInput.value = stripPrefix('desire', gt.desire);
+        console.log('  ✓ Desire loaded:', desireInput.value);
     }
     if (gt.intention) {
         intentionInput.value = stripPrefix('intention', gt.intention);
+        console.log('  ✓ Intention loaded:', intentionInput.value);
     }
     
     // Pre-populate cognitive appraisals
     if (gt.cognitive_appraisals && Array.isArray(gt.cognitive_appraisals)) {
         selectedAppraisals = [];
+        console.log('  🧠 Loading appraisals:', gt.cognitive_appraisals);
+        
         gt.cognitive_appraisals.forEach(dimensionKey => {
             // Find the dimension in cognitiveDimensions
             const dimension = cognitiveDimensions.find(d => {
@@ -669,18 +829,20 @@ function loadGroundTruth() {
                 const description = Object.values(dimension)[0];
                 selectedAppraisals.push({
                     dimension: key,
-                    description: description,
-                    intensity: 5 // Default intensity
+                    description: description
                 });
+                console.log(`    ✓ Added: ${key}`);
             } else {
-                console.warn(`Ground truth dimension "${dimensionKey}" not found in cognitive_dimensions.json`);
+                console.warn(`    ❌ Ground truth dimension "${dimensionKey}" not found in cognitive_dimensions.json`);
             }
         });
+        
+        console.log(`  ✓ Pre-selected ${selectedAppraisals.length} appraisals`);
         renderSelectedAppraisals();
         updateAppraisalOptions();
     }
     
-    console.log('✅ Ground truth loaded and pre-populated');
+    console.log('✅ Ground truth loaded and pre-populated successfully');
 }
 
 // Load existing annotation if available
@@ -1001,8 +1163,7 @@ function addAppraisal(key, description) {
     
     selectedAppraisals.push({
         dimension: key,
-        description: description,
-        intensity: 5
+        description: description
     });
     
     renderSelectedAppraisals();
@@ -1016,13 +1177,7 @@ function removeAppraisal(key) {
     updateAppraisalOptions();
 }
 
-// Update appraisal intensity
-function updateAppraisalIntensity(key, intensity) {
-    const appraisal = selectedAppraisals.find(a => a.dimension === key);
-    if (appraisal) {
-        appraisal.intensity = parseInt(intensity);
-    }
-}
+// Removed: updateAppraisalIntensity function (intensity scores no longer used)
 
 // Render selected appraisals with drag-and-drop support
 function renderSelectedAppraisals() {
@@ -1068,33 +1223,12 @@ function renderSelectedAppraisals() {
         const controlsContainer = document.createElement('div');
         controlsContainer.className = 'appraisal-item-controls';
         
-        const intensityContainer = document.createElement('div');
-        intensityContainer.className = 'appraisal-item-intensity';
-        
-        const intensityLabel = document.createElement('label');
-        intensityLabel.textContent = 'Intensity:';
-        
-        const intensityInput = document.createElement('input');
-        intensityInput.type = 'number';
-        intensityInput.min = '1';
-        intensityInput.max = '10';
-        intensityInput.value = appraisal.intensity;
-        intensityInput.addEventListener('change', (e) => {
-            const value = Math.max(1, Math.min(10, parseInt(e.target.value) || 5));
-            e.target.value = value;
-            updateAppraisalIntensity(appraisal.dimension, value);
-        });
-        
-        intensityContainer.appendChild(intensityLabel);
-        intensityContainer.appendChild(intensityInput);
-        
         const removeBtn = document.createElement('button');
         removeBtn.className = 'appraisal-item-remove';
         removeBtn.textContent = '✕';
         removeBtn.title = 'Remove';
         removeBtn.addEventListener('click', () => removeAppraisal(appraisal.dimension));
         
-        controlsContainer.appendChild(intensityContainer);
         controlsContainer.appendChild(removeBtn);
         
         // Assemble the item
@@ -1372,7 +1506,10 @@ async function performSave() {
                 showStatus(`✅ Loaded next dialogue: ${allDialogues[nextUnannotated].entry_id}`, 'success');
             }, 1500);
         } else {
-            showStatus('🎉 All dialogues completed!', 'success');
+            const completionMsg = assignedDialogues.length > 0 
+                ? `🎉 All ${assignedDialogues.length} assigned dialogues completed!`
+                : '🎉 All dialogues completed!';
+            showStatus(completionMsg, 'success');
         }
     } catch (error) {
         console.error('Error saving annotation:', error);
@@ -1456,8 +1593,8 @@ function debounce(func, wait) {
 
 // Check username availability with visual feedback
 async function checkUsernameAvailability(username) {
-    const statusIcon = document.getElementById('username-status');
-    const availabilityText = document.getElementById('username-availability');
+    const statusIcon = document.getElementById('register-username-status');
+    const availabilityText = document.getElementById('register-username-availability');
     
     // Clear previous status
     statusIcon.className = 'username-status';
@@ -1514,84 +1651,73 @@ async function checkUsernameAvailability(username) {
 const debouncedUsernameCheck = debounce(checkUsernameAvailability, 500);
 
 function setupLoginListeners() {
+    // Login Modal Elements
     const loginBtn = document.getElementById('login-btn');
+    const loginUsernameInput = document.getElementById('login-username-input');
+    const loginPasswordInput = document.getElementById('login-password-input');
+    const showRegisterLink = document.getElementById('show-register-link');
+    
+    // Register Modal Elements
     const registerBtn = document.getElementById('register-btn');
-    const usernameInput = document.getElementById('username-input');
-    const passwordInput = document.getElementById('password-input');
-    const confirmPasswordGroup = document.getElementById('confirm-password-group');
-    const confirmPasswordInput = document.getElementById('confirm-password-input');
+    const registerUsernameInput = document.getElementById('register-username-input');
+    const registerPasswordInput = document.getElementById('register-password-input');
+    const registerConfirmPasswordInput = document.getElementById('register-confirm-password-input');
+    const showLoginLink = document.getElementById('show-login-link');
     
-    // Real-time username availability check (only when registering)
-    usernameInput.addEventListener('input', (e) => {
-        // Only check if confirm password is visible (i.e., in register mode)
-        if (confirmPasswordGroup.style.display === 'block') {
-            debouncedUsernameCheck(e.target.value.trim());
-        } else {
-            // Clear status when in login mode
-            const statusIcon = document.getElementById('username-status');
-            const availabilityText = document.getElementById('username-availability');
-            statusIcon.className = 'username-status';
-            statusIcon.textContent = '';
-            availabilityText.className = 'username-availability';
-            availabilityText.textContent = '';
-        }
+    // --- LOGIN MODAL LISTENERS ---
+    
+    // Login button click
+    loginBtn.addEventListener('click', handleLogin);
+    
+    // Switch to register modal
+    showRegisterLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        showRegisterModal();
     });
     
-    // Show confirm password field when Register button is focused/hovered
-    registerBtn.addEventListener('mouseenter', () => {
-        confirmPasswordGroup.style.display = 'block';
-        // Check username when switching to register mode
-        const username = usernameInput.value.trim();
-        if (username.length >= 3) {
-            debouncedUsernameCheck(username);
-        }
-    });
-    
-    registerBtn.addEventListener('focus', () => {
-        confirmPasswordGroup.style.display = 'block';
-        // Check username when switching to register mode
-        const username = usernameInput.value.trim();
-        if (username.length >= 3) {
-            debouncedUsernameCheck(username);
-        }
-    });
-    
-    // Hide confirm password and clear username status when clicking Login
-    loginBtn.addEventListener('click', () => {
-        confirmPasswordGroup.style.display = 'none';
-        // Clear username status
-        const statusIcon = document.getElementById('username-status');
-        const availabilityText = document.getElementById('username-availability');
-        statusIcon.className = 'username-status';
-        statusIcon.textContent = '';
-        availabilityText.className = 'username-availability';
-        availabilityText.textContent = '';
-        handleLogin();
-    });
-    
-    registerBtn.addEventListener('click', () => {
-        confirmPasswordGroup.style.display = 'block';
-        handleRegister();
-    });
-    
-    // Allow Enter key to login
-    usernameInput.addEventListener('keypress', (e) => {
+    // Enter key navigation in login modal
+    loginUsernameInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
-            passwordInput.focus();
+            loginPasswordInput.focus();
         }
     });
     
-    passwordInput.addEventListener('keypress', (e) => {
+    loginPasswordInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
-            if (confirmPasswordGroup.style.display === 'block') {
-                confirmPasswordInput.focus();
-            } else {
-                handleLogin();
-            }
+            handleLogin();
         }
     });
     
-    confirmPasswordInput.addEventListener('keypress', (e) => {
+    // --- REGISTER MODAL LISTENERS ---
+    
+    // Register button click
+    registerBtn.addEventListener('click', handleRegister);
+    
+    // Switch to login modal
+    showLoginLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        showLoginModal();
+    });
+    
+    // Real-time username availability check
+    registerUsernameInput.addEventListener('input', (e) => {
+        debouncedUsernameCheck(e.target.value.trim());
+    });
+    
+    // Enter key navigation in register modal
+    registerUsernameInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            registerPasswordInput.focus();
+        }
+    });
+    
+    registerPasswordInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            registerConfirmPasswordInput.focus();
+        }
+    });
+    
+    registerConfirmPasswordInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             handleRegister();
         }
@@ -1599,8 +1725,8 @@ function setupLoginListeners() {
 }
 
 async function handleLogin() {
-    const username = document.getElementById('username-input').value.trim();
-    const password = document.getElementById('password-input').value;
+    const username = document.getElementById('login-username-input').value.trim();
+    const password = document.getElementById('login-password-input').value;
     
     if (!username || !password) {
         showLoginError('Please enter username and password');
@@ -1622,9 +1748,12 @@ async function handleLogin() {
         currentUsername = username;
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, username);
         
+        // Load assigned dialogues for this user
+        await loadAssignedDialogues();
+        
         hideLoginModal();
         await initializeApp();
-        showStatus(`Welcome back, ${username}!`, 'success');
+        showStatus(`Welcome back, ${username}! You have ${assignedDialogues.length} dialogues to annotate.`, 'success');
     } catch (error) {
         console.error('Login error:', error);
         showLoginError('Error logging in: ' + error.message);
@@ -1632,41 +1761,41 @@ async function handleLogin() {
 }
 
 async function handleRegister() {
-    const username = document.getElementById('username-input').value.trim();
-    const password = document.getElementById('password-input').value;
-    const confirmPassword = document.getElementById('confirm-password-input').value;
+    const username = document.getElementById('register-username-input').value.trim();
+    const password = document.getElementById('register-password-input').value;
+    const confirmPassword = document.getElementById('register-confirm-password-input').value;
     
     // Validate inputs
     if (!username || !password) {
-        showLoginError('Please enter username and password');
+        showRegisterError('Please enter username and password');
         return;
     }
     
     // Validate username length
     if (username.length < 3) {
-        showLoginError('Username must be at least 3 characters');
+        showRegisterError('Username must be at least 3 characters');
         return;
     }
     
     if (username.length > 20) {
-        showLoginError('Username must be at most 20 characters');
+        showRegisterError('Username must be at most 20 characters');
         return;
     }
     
     // Validate username format
     if (!/^[a-zA-Z0-9_-]+$/.test(username)) {
-        showLoginError('Username can only contain letters, numbers, underscore, and hyphen');
+        showRegisterError('Username can only contain letters, numbers, underscore, and hyphen');
         return;
     }
     
     // Validate password
     if (password.length < 6) {
-        showLoginError('Password must be at least 6 characters');
+        showRegisterError('Password must be at least 6 characters');
         return;
     }
     
     if (password !== confirmPassword) {
-        showLoginError('Passwords do not match');
+        showRegisterError('Passwords do not match');
         return;
     }
     
@@ -1678,27 +1807,38 @@ async function handleRegister() {
         // Pre-check if username is already taken
         const isTaken = await firebaseStorage.isUsernameTaken(username);
         if (isTaken) {
-            showLoginError('Username already taken. Please choose another one.');
+            showRegisterError('Username already taken. Please choose another one.');
             return;
         }
 
-        // Attempt registration
-        const result = await firebaseStorage.registerUser(username, password);
+        // Sample dialogues for this user
+        showRegisterError('Assigning dialogues...'); // Show progress
+        const sampledDialogues = await sampleDialogues(DIALOGUES_PER_USER);
+        
+        if (sampledDialogues.length < DIALOGUES_PER_USER) {
+            console.warn(`⚠️ Only ${sampledDialogues.length} dialogues available for assignment`);
+        }
+        
+        console.log(`🎲 Sampled ${sampledDialogues.length} dialogues for ${username}:`, sampledDialogues);
+
+        // Attempt registration with assigned dialogues
+        const result = await firebaseStorage.registerUser(username, password, sampledDialogues);
         
         if (!result.success) {
-            showLoginError(result.message);
+            showRegisterError(result.message);
             return;
         }
         
         currentUsername = username;
+        assignedDialogues = result.assignedDialogues || sampledDialogues;
         localStorage.setItem(STORAGE_KEYS.CURRENT_USER, username);
         
-        hideLoginModal();
+        hideRegisterModal();
         await initializeApp();
-        showStatus(`Welcome, ${username}! Registration successful.`, 'success');
+        showStatus(`Welcome, ${username}! You have been assigned ${assignedDialogues.length} dialogues to annotate.`, 'success');
     } catch (error) {
         console.error('Registration error:', error);
-        showLoginError('Error registering user: ' + error.message);
+        showRegisterError('Error registering user: ' + error.message);
     }
 }
 
@@ -1708,9 +1848,67 @@ function showLoginError(message) {
     errorDiv.classList.remove('hidden');
 }
 
+function showRegisterError(message) {
+    const errorDiv = document.getElementById('register-error');
+    errorDiv.textContent = message;
+    errorDiv.classList.remove('hidden');
+}
+
 function hideLoginModal() {
     const modal = document.getElementById('login-modal');
     modal.classList.remove('show');
+}
+
+function hideRegisterModal() {
+    const modal = document.getElementById('register-modal');
+    modal.classList.remove('show');
+}
+
+function showLoginModal() {
+    const loginModal = document.getElementById('login-modal');
+    const registerModal = document.getElementById('register-modal');
+    
+    // Hide register modal, show login modal
+    registerModal.classList.remove('show');
+    loginModal.classList.add('show');
+    
+    // Clear login form and errors
+    document.getElementById('login-username-input').value = '';
+    document.getElementById('login-password-input').value = '';
+    document.getElementById('login-error').classList.add('hidden');
+    
+    // Focus on username input
+    setTimeout(() => {
+        document.getElementById('login-username-input').focus();
+    }, 100);
+}
+
+function showRegisterModal() {
+    const loginModal = document.getElementById('login-modal');
+    const registerModal = document.getElementById('register-modal');
+    
+    // Hide login modal, show register modal
+    loginModal.classList.remove('show');
+    registerModal.classList.add('show');
+    
+    // Clear register form and errors
+    document.getElementById('register-username-input').value = '';
+    document.getElementById('register-password-input').value = '';
+    document.getElementById('register-confirm-password-input').value = '';
+    document.getElementById('register-error').classList.add('hidden');
+    
+    // Clear username availability status
+    const statusIcon = document.getElementById('register-username-status');
+    const availabilityText = document.getElementById('register-username-availability');
+    statusIcon.className = 'username-status';
+    statusIcon.textContent = '';
+    availabilityText.className = 'username-availability';
+    availabilityText.textContent = '';
+    
+    // Focus on username input
+    setTimeout(() => {
+        document.getElementById('register-username-input').focus();
+    }, 100);
 }
 
 function updateUserBadge() {
@@ -1732,6 +1930,7 @@ function handleLogout() {
         
         localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
         currentUsername = null;
+        assignedDialogues = []; // Clear assigned dialogues
         location.reload();
     }
 }

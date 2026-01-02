@@ -10,10 +10,12 @@
 
 1. 🔐 LOGIN
    • Enter your username and password
-   • Click "Login" (or "Register" if first time)
+   • Click "Register" if first time (you'll be assigned 10 unique dialogues)
+   • Click "Login" if returning (your assignments are saved)
 
 2. 📂 SELECT DIALOGUE
-   • Choose from dropdown menu
+   • Choose from YOUR ASSIGNED dialogues in dropdown (10 total)
+   • You only see your assigned dialogues (no overlap with others)
    • Dialogue loads with ground truth pre-filled
 
 3. 👀 REVIEW DIALOGUE

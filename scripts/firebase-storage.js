@@ -52,9 +52,10 @@ class FirebaseStorage {
      * Creates email from username for Firebase Auth
      * @param {string} username - User's chosen username
      * @param {string} password - User's password (min 6 chars)
+     * @param {Array<string>} assignedDialogues - Array of dialogue IDs assigned to user
      * @returns {Promise<Object>} - {success, uid, message}
      */
-    async registerUser(username, password) {
+    async registerUser(username, password, assignedDialogues = []) {
         try {
             // Create email from username (Firebase Auth requires email)
             // Format: username@annotation.local
@@ -64,18 +65,21 @@ class FirebaseStorage {
             const userCredential = await this.auth.createUserWithEmailAndPassword(email, password);
             this.currentUser = userCredential.user;
             
-            // Store user profile in Firestore
+            // Store user profile in Firestore with assigned dialogues
             await this.db.collection('users').doc(this.currentUser.uid).set({
                 username: username,
                 email: email,
+                assignedDialogues: assignedDialogues,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
             
             console.log('✅ User registered:', username);
+            console.log('📋 Assigned dialogues:', assignedDialogues.length);
             return { 
                 success: true, 
                 uid: this.currentUser.uid,
-                username: username
+                username: username,
+                assignedDialogues: assignedDialogues
             };
         } catch (error) {
             console.error('❌ Registration error:', error);
@@ -276,6 +280,57 @@ class FirebaseStorage {
             return dialogueIds;
         } catch (error) {
             console.error('Error getting user annotations:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get assigned dialogues for current user
+     * @returns {Promise<Array<string>>} - Array of dialogue IDs
+     */
+    async getAssignedDialogues() {
+        if (!this.currentUser) {
+            console.warn('User not authenticated');
+            return [];
+        }
+
+        try {
+            const userDoc = await this.db.collection('users').doc(this.currentUser.uid).get();
+            
+            if (userDoc.exists) {
+                const data = userDoc.data();
+                const assigned = data.assignedDialogues || [];
+                console.log(`📋 User has ${assigned.length} assigned dialogues`);
+                return assigned;
+            }
+            
+            return [];
+        } catch (error) {
+            console.error('Error getting assigned dialogues:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get all assigned dialogues (from all users) for tracking
+     * @returns {Promise<Array<string>>} - Array of all assigned dialogue IDs
+     */
+    async getAllAssignedDialogues() {
+        try {
+            const snapshot = await this.db.collection('users').get();
+            const allAssigned = new Set();
+            
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.assignedDialogues && Array.isArray(data.assignedDialogues)) {
+                    data.assignedDialogues.forEach(id => allAssigned.add(id));
+                }
+            });
+            
+            console.log(`📊 Total assigned dialogues across all users: ${allAssigned.size}`);
+            return Array.from(allAssigned);
+        } catch (error) {
+            console.error('Error getting all assigned dialogues:', error);
             return [];
         }
     }

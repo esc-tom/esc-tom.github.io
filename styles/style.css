@@ -858,6 +858,40 @@ header h1 {
 }
 
 /* Dialogue info box - Minimalistic */
+/* Context section for situation and thought */
+.context-section {
+    margin-bottom: 20px;
+    padding: 16px;
+    background: #fff8e1;
+    border: 2px solid #ffc107;
+    border-radius: var(--radius-md);
+}
+
+.context-box {
+    margin-bottom: 12px;
+}
+
+.context-box:last-child {
+    margin-bottom: 0;
+}
+
+.context-box h4 {
+    margin: 0 0 8px 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: #f57c00;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.context-text {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #424242;
+    font-style: italic;
+}
+
 .dialogue-info-box {
     margin-top: 20px;
     padding: 14px 18px;
@@ -1370,32 +1404,7 @@ header h1 {
     gap: 12px;
 }
 
-.appraisal-item-intensity {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.appraisal-item-intensity label {
-    font-size: 12px;
-    color: #7f8c8d;
-    white-space: nowrap;
-}
-
-.appraisal-item-intensity input {
-    width: 55px;
-    padding: 6px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    text-align: center;
-    font-size: 13px;
-    font-weight: 600;
-}
-
-.appraisal-item-intensity input:focus {
-    outline: none;
-    border-color: #3498db;
-}
+/* Removed: appraisal-item-intensity styles (intensity scores no longer used) */
 
 .appraisal-item-remove {
     padding: 6px 10px;
@@ -1835,13 +1844,39 @@ header h1 {
     padding: 16px 24px;
     background: var(--bg-secondary);
     display: flex;
+    flex-direction: column;
     gap: 12px;
-    justify-content: flex-end;
+    align-items: center;
     border-top: 1px solid var(--border-color);
 }
 
 .modal-footer .btn {
     min-width: 100px;
+}
+
+.modal-footer .btn-large {
+    min-width: 200px;
+    padding: 12px 24px;
+    font-size: 16px;
+}
+
+.modal-link {
+    margin: 8px 0 0 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.modal-link a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.modal-link a:hover {
+    color: var(--primary-dark);
+    text-decoration: underline;
 }
 
 @media (max-width: 1200px) {
