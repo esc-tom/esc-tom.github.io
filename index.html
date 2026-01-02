@@ -138,16 +138,18 @@
                 <div class="dialogue-info-box">
                     <p class="info-text">
                         <strong>Instructions:</strong> 
-                        1. Review the exploration phase dialogue (all turns shown).<br>
+                        1. Review the dialogue. <strong>Click "Edit" on any utterance to modify weird/unclear content.</strong><br>
                         2. <strong>Click on the turn</strong> that provided the minimum necessary context for your annotation.<br>
-                        3. Complete the annotation forms on the right.
+                        3. <strong>Revise the ground truth</strong> BDI and cognitive appraisals on the right (pre-filled for you).<br>
+                        4. Save when done.
                     </p>
                 </div>
             </div>
 
             <!-- Right Panel: Annotation Form -->
             <div class="annotation-panel">
-                <h2>Annotations</h2>
+                <h2>Revise Ground Truth Annotations</h2>
+                <p class="annotation-subtitle">Review and modify the pre-filled annotations below</p>
                 
                 <div id="annotation-locked-message" class="annotation-locked-message">
                     <span class="lock-icon">🔒</span>
@@ -165,21 +167,21 @@
                             <label for="belief">Belief:</label>
                             <div class="bdi-input-wrapper">
                                 <span class="bdi-prefix">I believe that</span>
-                                <input type="text" id="belief" placeholder="complete the sentence..."></input>
+                                <input type="text" id="belief" placeholder="ground truth will load here..."></input>
                             </div>
                         </div>
                         <div class="form-group">
                             <label for="desire">Desire:</label>
                             <div class="bdi-input-wrapper">
                                 <span class="bdi-prefix">I wish to</span>
-                                <input type="text" id="desire" placeholder="complete the sentence..."></input>
+                                <input type="text" id="desire" placeholder="ground truth will load here..."></input>
                             </div>
                         </div>
                         <div class="form-group">
                             <label for="intention">Intention:</label>
                             <div class="bdi-input-wrapper">
                                 <span class="bdi-prefix">I intend to</span>
-                                <input type="text" id="intention" placeholder="complete the sentence..."></input>
+                                <input type="text" id="intention" placeholder="ground truth will load here..."></input>
                             </div>
                         </div>
                     </div>
@@ -192,7 +194,7 @@
                         Cognitive Appraisals
                     </h3>
                     <div class="section-content" id="appraisals-content">
-                        <p class="help-text">Select up to 5 cognitive appraisals and assign intensity scores (1-5). Drag to reorder by importance.</p>
+                        <p class="help-text">Ground truth appraisals are pre-selected. Modify selections and intensity scores (1-5) as needed. Drag to reorder by importance.</p>
                         
                         <div class="appraisal-selector">
                             <label>Available Dimensions (click to select):</label>

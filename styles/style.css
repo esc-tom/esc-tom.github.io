@@ -413,9 +413,17 @@ header h1 {
 }
 
 .annotation-panel h2 {
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     padding-bottom: 12px;
     border-bottom: 3px solid var(--primary-color);
+}
+
+.annotation-subtitle {
+    color: #7f8c8d;
+    font-size: 14px;
+    margin-top: -5px;
+    margin-bottom: 20px;
+    font-style: italic;
 }
 
 .dialogue-container {
@@ -599,6 +607,100 @@ header h1 {
     line-height: 1.7;
     font-size: 14px;
     font-weight: 400;
+    position: relative;
+    padding-right: 70px; /* Space for edit button */
+}
+
+/* Utterance editing */
+.edit-utterance-btn {
+    position: absolute;
+    right: 0;
+    top: 0;
+    padding: 4px 12px;
+    font-size: 12px;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.utterance:hover .edit-utterance-btn {
+    opacity: 1;
+}
+
+.edit-utterance-btn:hover {
+    background: #2980b9;
+}
+
+.utterance-edit-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    border: 2px solid #3498db;
+}
+
+.utterance-edit-input {
+    width: 100%;
+    padding: 8px;
+    font-size: 14px;
+    border: 1px solid #cbd5e0;
+    border-radius: 4px;
+    font-family: inherit;
+    line-height: 1.5;
+    min-height: 60px;
+    resize: vertical;
+}
+
+.utterance-edit-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.utterance-save-btn, .utterance-cancel-btn {
+    padding: 6px 14px;
+    font-size: 13px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.utterance-save-btn {
+    background: #27ae60;
+    color: white;
+}
+
+.utterance-save-btn:hover {
+    background: #229954;
+}
+
+.utterance-cancel-btn {
+    background: #95a5a6;
+    color: white;
+}
+
+.utterance-cancel-btn:hover {
+    background: #7f8c8d;
+}
+
+.utterance-modified {
+    background-color: #fff3cd;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+.utterance-modified-indicator {
+    color: #856404;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 6px;
 }
 
 .placeholder, .placeholder-small {

@@ -33,7 +33,17 @@
         "speaker": "therapist",
         "utterance": "What makes you think you're not qualified for this position?"
       }
-    ]
+    ],
+    "ground_truth": {
+      "belief": "I am not competent enough for my new job",
+      "desire": "I want to be seen as capable and competent by my colleagues",
+      "intention": "I will try to avoid making mistakes that would expose my inadequacy",
+      "cognitive_appraisals": [
+        "Threat",
+        "Self-accountability",
+        "Low control"
+      ]
+    }
   },
   "example_002": {
     "entry_id": "example_002",
@@ -61,7 +71,17 @@
         "speaker": "therapist",
         "utterance": "When did you first notice these conflicts becoming more frequent?"
       }
-    ]
+    ],
+    "ground_truth": {
+      "belief": "My relationship is deteriorating and we are incompatible",
+      "desire": "I want a harmonious and understanding relationship with my partner",
+      "intention": "I need to figure out if this relationship can be saved or if I should end it",
+      "cognitive_appraisals": [
+        "Threat",
+        "Low control",
+        "Negative outcome likelihood"
+      ]
+    }
   }
 }
 

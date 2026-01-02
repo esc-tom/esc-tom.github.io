@@ -1,6 +1,6 @@
 # ESC-ToM Annotation Tool - GitHub Pages
 
-A web-based dialogue annotation tool for ESC-ToM (Emotional Support Conversation - Theory of Mind) research. This static site allows multiple annotators to review therapeutic dialogues and provide annotations including BDI (Belief, Desire, Intention) and cognitive appraisals.
+A web-based dialogue annotation tool for ESC-ToM (Emotional Support Conversation - Theory of Mind) research. This static site uses a **revision-based workflow** where annotators review and revise pre-filled ground truth annotations for therapeutic dialogues.
 
 ## Live Demo
 
@@ -8,27 +8,32 @@ Visit the live tool at: `https://[your-username].github.io/`
 
 ## Features
 
-- **User Management**: Register and login with username/password (Firebase Authentication)
-- **Dialogue Annotation**: View and annotate therapeutic dialogues
-- **Persona Profiles**: Display patient information including Big Five personality traits
-- **BDI Annotations**: Annotate beliefs, desires, and intentions
-- **Cognitive Appraisals**: Select and rank up to 5 cognitive appraisal dimensions with intensity scores
-- **Progress Tracking**: Track annotation progress across all dialogues
-- **Cloud Storage**: All annotations saved in Firebase Firestore (automatic backup, real-time sync)
-- **Drag & Drop**: Reorder appraisals by importance
-- **Multi-Device**: Access your annotations from any device
+- **🔄 Revision-Based Workflow**: Ground truth BDI and appraisals are pre-filled for review and revision
+- **✏️ Utterance Editing**: Edit dialogue utterances to fix weird/unclear content
+- **🔐 User Management**: Register and login with username/password (Firebase Authentication)
+- **📝 BDI Annotations**: Review and revise pre-filled beliefs, desires, and intentions
+- **🧠 Cognitive Appraisals**: Modify pre-selected appraisal dimensions and adjust intensity scores (1-5)
+- **🎯 Context Marking**: Mark the turn that provides minimum necessary context
+- **👤 Persona Profiles**: Display patient information including Big Five personality traits
+- **📊 Progress Tracking**: Track annotation progress across all dialogues
+- **☁️ Cloud Storage**: All annotations saved in Firebase Firestore (automatic backup, real-time sync)
+- **🔄 Drag & Drop**: Reorder appraisals by importance
+- **📱 Multi-Device**: Access your annotations from any device
 
 ## Quick Start
 
-### For Users
+### For Annotators
 
-1. Visit the GitHub Pages URL
-2. Register with a username and password, or login with existing credentials
-3. Select a dialogue from the dropdown
-4. Review the dialogue turns
-5. Click on the turn that provided minimum necessary context
-6. Complete the annotation forms
-7. Save your annotations
+1. **Visit** the GitHub Pages URL
+2. **Register** with a username and password, or login with existing credentials
+3. **Select** a dialogue from the dropdown
+4. **Review** the dialogue - ground truth BDI and appraisals are automatically pre-filled
+5. **Edit** any weird/unclear utterances by clicking the "Edit" button
+6. **Mark** the turn that provided minimum necessary context (click on the turn pair)
+7. **Revise** the pre-filled BDI and cognitive appraisals as needed
+8. **Save** your revised annotations
+
+**💡 Tip**: You're reviewing and revising ground truth, not creating annotations from scratch!
 
 ### For Developers/Administrators
 
@@ -52,7 +57,7 @@ Visit the live tool at: `https://[your-username].github.io/`
 
 #### Adding New Dialogues
 
-Edit `data/dialogues.json` to add new dialogues. Format:
+Edit `data/dialogues.json` to add new dialogues. **Required**: Include `ground_truth` for revision-based workflow.
 
 ```json
 {
@@ -74,10 +79,22 @@ Edit `data/dialogues.json` to add new dialogues. Format:
         "speaker": "therapist",
         "utterance": "The therapist's response"
       }
-    ]
+    ],
+    "ground_truth": {
+      "belief": "The patient's belief statement",
+      "desire": "The patient's desire statement",
+      "intention": "The patient's intention statement",
+      "cognitive_appraisals": [
+        "Dimension1",
+        "Dimension2",
+        "Dimension3"
+      ]
+    }
   }
 }
 ```
+
+**Note**: Ground truth is pre-filled for annotators to review and revise. Appraisal dimension names must match keys in `cognitive_dimensions.json`.
 
 **Big Five Traits Recognition**:
 The system automatically detects these traits from the `traits` field:

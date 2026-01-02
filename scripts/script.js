@@ -40,6 +40,7 @@ let cognitiveDimensions = [];
 let selectedAppraisals = [];
 let readyToAnnotateTurn = null; // Tracks when user clicked "Ready to Annotate"
 let minContextTurnIndex = null; // Tracks which turn provides minimum necessary context
+let modifiedUtterances = {}; // Track modified utterances { turnIndex: newUtterance }
 const MAX_APPRAISALS = 5;
 
 // DOM Elements
@@ -374,6 +375,7 @@ async function handleDialogueChange() {
     currentTurnIndex = 0;
     readyToAnnotateTurn = 0; // Set to 0 since we auto-show exploration turns
     minContextTurnIndex = null; // Reset min context marker
+    modifiedUtterances = {}; // Reset modified utterances
     
     // Update dialogue info
     updateDialogueInfo();
@@ -385,7 +387,10 @@ async function handleDialogueChange() {
     dialogueContainer.innerHTML = '';
     clearAnnotations();
     
-    // Try to load existing annotation
+    // Load ground truth first (pre-populate)
+    loadGroundTruth();
+    
+    // Try to load existing annotation (will override ground truth if exists)
     await loadExistingAnnotation();
     
     // Automatically show exploration phase turns
@@ -630,6 +635,47 @@ async function saveAnnotationToStorage(entryId, annotation) {
     }
 }
 
+// Load ground truth and pre-populate annotation fields
+function loadGroundTruth() {
+    if (!currentDialogue || !currentDialogue.ground_truth) {
+        console.log('No ground truth available for this dialogue');
+        return;
+    }
+    
+    const gt = currentDialogue.ground_truth;
+    
+    // Pre-populate BDI fields (strip prefixes if they exist)
+    if (gt.belief) {
+        beliefInput.value = stripPrefix('belief', gt.belief);
+    }
+    if (gt.desire) {
+        desireInput.value = stripPrefix('desire', gt.desire);
+    }
+    if (gt.intention) {
+        intentionInput.value = stripPrefix('intention', gt.intention);
+    }
+    
+    // Pre-populate cognitive appraisals
+    if (gt.cognitive_appraisals && Array.isArray(gt.cognitive_appraisals)) {
+        selectedAppraisals = [];
+        gt.cognitive_appraisals.forEach(dimensionKey => {
+            // Find the dimension in cognitiveDimensions
+            const dimension = cognitiveDimensions.find(d => d.key === dimensionKey);
+            if (dimension) {
+                selectedAppraisals.push({
+                    dimension: dimension.key,
+                    description: dimension.description,
+                    intensity: 5 // Default intensity
+                });
+            }
+        });
+        renderSelectedAppraisals();
+        updateAppraisalOptions();
+    }
+    
+    console.log('✅ Ground truth loaded and pre-populated');
+}
+
 // Load existing annotation if available
 async function loadExistingAnnotation() {
     try {
@@ -664,6 +710,11 @@ async function loadExistingAnnotation() {
                         turnPair.classList.add('min-context-selected');
                     }
                 }, 100);
+            }
+            
+            // Load modified utterances if any
+            if (annotation.modified_utterances) {
+                modifiedUtterances = annotation.modified_utterances;
             }
             
             showStatus('Loaded existing annotation', 'success');
@@ -737,6 +788,7 @@ function markMinContextTurn(turnIndex, turnPairNumber, element) {
 function createSingleTurnElement(turn, index) {
     const turnDiv = document.createElement('div');
     turnDiv.className = `dialogue-turn ${turn.speaker}`;
+    turnDiv.dataset.turnIndex = index;
     
     const speakerLabel = document.createElement('div');
     speakerLabel.className = `speaker-label ${turn.speaker}`;
@@ -754,12 +806,139 @@ function createSingleTurnElement(turn, index) {
     
     const utterance = document.createElement('div');
     utterance.className = 'utterance';
-    utterance.textContent = turn.utterance;
+    utterance.dataset.turnIndex = index;
+    
+    // Check if this utterance has been modified
+    const displayText = modifiedUtterances[index] || turn.utterance;
+    utterance.textContent = displayText;
+    
+    // Add modified indicator if utterance was changed
+    if (modifiedUtterances[index]) {
+        const modIndicator = document.createElement('span');
+        modIndicator.className = 'utterance-modified-indicator';
+        modIndicator.textContent = '(edited)';
+        utterance.appendChild(modIndicator);
+        utterance.classList.add('utterance-modified');
+    }
+    
+    // Add edit button
+    const editBtn = document.createElement('button');
+    editBtn.className = 'edit-utterance-btn';
+    editBtn.textContent = 'Edit';
+    editBtn.onclick = (e) => {
+        e.stopPropagation(); // Prevent turn pair click
+        enterUtteranceEditMode(turnDiv, index, displayText);
+    };
+    utterance.appendChild(editBtn);
     
     turnDiv.appendChild(speakerLabel);
     turnDiv.appendChild(utterance);
     
     return turnDiv;
+}
+
+// Enter edit mode for an utterance
+function enterUtteranceEditMode(turnDiv, turnIndex, currentText) {
+    const utteranceDiv = turnDiv.querySelector('.utterance');
+    
+    // Create edit UI
+    const editContainer = document.createElement('div');
+    editContainer.className = 'utterance-edit-mode';
+    
+    const textarea = document.createElement('textarea');
+    textarea.className = 'utterance-edit-input';
+    textarea.value = currentText;
+    textarea.rows = 3;
+    
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'utterance-edit-actions';
+    
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'utterance-save-btn';
+    saveBtn.textContent = 'Save';
+    saveBtn.onclick = () => saveUtteranceEdit(turnDiv, turnIndex, textarea.value);
+    
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'utterance-cancel-btn';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.onclick = () => cancelUtteranceEdit(turnDiv, turnIndex);
+    
+    actionsDiv.appendChild(saveBtn);
+    actionsDiv.appendChild(cancelBtn);
+    
+    editContainer.appendChild(textarea);
+    editContainer.appendChild(actionsDiv);
+    
+    // Replace utterance div with edit container
+    utteranceDiv.replaceWith(editContainer);
+    textarea.focus();
+}
+
+// Save edited utterance
+function saveUtteranceEdit(turnDiv, turnIndex, newText) {
+    if (!newText.trim()) {
+        showStatus('Utterance cannot be empty', 'error');
+        setTimeout(() => hideStatus(), 2000);
+        return;
+    }
+    
+    // Save to modified utterances tracking
+    const originalText = currentDialogue.dialogue_history[turnIndex].utterance;
+    if (newText.trim() !== originalText.trim()) {
+        modifiedUtterances[turnIndex] = newText.trim();
+    } else {
+        // If changed back to original, remove from modifications
+        delete modifiedUtterances[turnIndex];
+    }
+    
+    // Re-render the turn
+    const editContainer = turnDiv.querySelector('.utterance-edit-mode');
+    const turn = currentDialogue.dialogue_history[turnIndex];
+    const newUtteranceDiv = createUtteranceDiv(turn, turnIndex);
+    editContainer.replaceWith(newUtteranceDiv);
+    
+    showStatus('Utterance updated', 'success');
+    setTimeout(() => hideStatus(), 2000);
+}
+
+// Cancel utterance edit
+function cancelUtteranceEdit(turnDiv, turnIndex) {
+    const editContainer = turnDiv.querySelector('.utterance-edit-mode');
+    const turn = currentDialogue.dialogue_history[turnIndex];
+    const utteranceDiv = createUtteranceDiv(turn, turnIndex);
+    editContainer.replaceWith(utteranceDiv);
+}
+
+// Helper to create utterance div (for re-rendering after edit)
+function createUtteranceDiv(turn, index) {
+    const utterance = document.createElement('div');
+    utterance.className = 'utterance';
+    utterance.dataset.turnIndex = index;
+    
+    const displayText = modifiedUtterances[index] || turn.utterance;
+    utterance.textContent = displayText;
+    
+    // Add modified indicator if utterance was changed
+    if (modifiedUtterances[index]) {
+        const modIndicator = document.createElement('span');
+        modIndicator.className = 'utterance-modified-indicator';
+        modIndicator.textContent = '(edited)';
+        utterance.appendChild(modIndicator);
+        utterance.classList.add('utterance-modified');
+    }
+    
+    // Add edit button
+    const editBtn = document.createElement('button');
+    editBtn.className = 'edit-utterance-btn';
+    editBtn.textContent = 'Edit';
+    editBtn.onclick = (e) => {
+        e.stopPropagation();
+        const turnDiv = e.target.closest('.dialogue-turn');
+        enterUtteranceEditMode(turnDiv, index, displayText);
+    };
+    utterance.appendChild(editBtn);
+    
+    return utterance;
 }
 
 // Update dialogue progress bar (shows % of dialogue unveiled)
@@ -1155,6 +1334,7 @@ async function performSave() {
         desire: addPrefix('desire', desireInput.value),
         intention: addPrefix('intention', intentionInput.value),
         cognitive_appraisals: selectedAppraisals,
+        modified_utterances: modifiedUtterances, // Save any edited utterances
         timestamp: new Date().toISOString()
     };
     

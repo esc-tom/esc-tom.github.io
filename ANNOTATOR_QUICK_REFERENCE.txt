@@ -1,0 +1,271 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║           REVISION-BASED ANNOTATION - QUICK REFERENCE               ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+📋 YOUR TASK: Review and revise pre-filled ground truth annotations
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  STEP-BY-STEP WORKFLOW                                               │
+└──────────────────────────────────────────────────────────────────────┘
+
+1. 🔐 LOGIN
+   • Enter your username and password
+   • Click "Login" (or "Register" if first time)
+
+2. 📂 SELECT DIALOGUE
+   • Choose from dropdown menu
+   • Dialogue loads with ground truth pre-filled
+
+3. 👀 REVIEW DIALOGUE
+   • Read all dialogue turns
+   • Identify weird/unclear utterances
+
+4. ✏️ EDIT UTTERANCES (if needed)
+   • Hover over utterance → "Edit" button appears
+   • Click "Edit" → Modify text → "Save"
+   • Only edit to fix weird content, not to rewrite
+
+5. 🎯 MARK MINIMUM CONTEXT TURN
+   • Click on the turn pair where you first had enough info
+   • Green checkmark indicates selected turn
+   • This is the "minimum necessary context" point
+
+6. 📝 REVISE GROUND TRUTH
+   
+   BDI (Belief, Desire, Intention):
+   • Review pre-filled belief, desire, intention
+   • Modify any text that needs improvement
+   • Ensure they align logically
+
+   Cognitive Appraisals:
+   • Review pre-selected appraisals
+   • Add/remove dimensions (max 5)
+   • Adjust intensity scores (1-5)
+   • Drag to reorder by importance
+
+7. 💾 SAVE
+   • Click "Save Annotation"
+   • Review confirmation modal
+   • Click "Confirm and Save"
+   • Next dialogue loads automatically
+
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  KEY FEATURES                                                         │
+└──────────────────────────────────────────────────────────────────────┘
+
+✅ GROUND TRUTH PRE-FILLED
+   • BDI and appraisals appear automatically
+   • Your job: Review and revise
+   • Not writing from scratch!
+
+✅ UTTERANCE EDITING
+   • Fix typos, unclear phrasing, weird content
+   • Hover → "Edit" → Modify → "Save"
+   • Shows "(edited)" indicator
+   • Yellow highlight for visibility
+
+✅ CONTEXT MARKING
+   • Click turn pair for minimum necessary context
+   • Where you first could derive the annotations
+   • Not where maximum context is available
+
+✅ CLOUD STORAGE
+   • Auto-saved to Firebase
+   • Access from any device
+   • Never lose your work
+
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  WHAT TO REVISE                                                       │
+└──────────────────────────────────────────────────────────────────────┘
+
+BELIEF: What does the patient think is true?
+  ✓ Review pre-filled text
+  ✓ Check: Does it match the dialogue?
+  ✓ Revise: Improve clarity or accuracy
+
+DESIRE: What does the patient want?
+  ✓ Review pre-filled text
+  ✓ Check: Is it the right goal/wish?
+  ✓ Revise: Adjust wording if needed
+
+INTENTION: What does the patient plan to do?
+  ✓ Review pre-filled text
+  ✓ Check: Is it consistent with belief/desire?
+  ✓ Revise: Modify as needed
+
+COGNITIVE APPRAISALS: How patient evaluates situation
+  ✓ Review pre-selected dimensions
+  ✓ Check: Are these the right dimensions?
+  ✓ Add/Remove: Change selection if needed
+  ✓ Intensity: 1 (low) to 5 (high)
+  ✓ Order: Drag to rank by importance
+
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  GUIDELINES                                                           │
+└──────────────────────────────────────────────────────────────────────┘
+
+✓ DO:
+  • Review ground truth carefully
+  • Revise when it's wrong or unclear
+  • Edit utterances to fix weird content
+  • Mark minimum context turn accurately
+  • Save regularly
+
+✗ DON'T:
+  • Accept ground truth without reviewing
+  • Over-edit dialogue utterances
+  • Change utterance meaning significantly
+  • Rush through annotations
+  • Forget to save
+
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  MARKING MINIMUM CONTEXT TURN                                        │
+└──────────────────────────────────────────────────────────────────────┘
+
+QUESTION: "At which turn did I first have enough information to derive
+           the belief, desire, intention, and appraisals?"
+
+THINK ABOUT:
+  • What information is ESSENTIAL?
+  • What information is just SUPPORTING?
+  • Where is the MINIMUM NECESSARY context?
+
+EXAMPLE:
+  Turn 1: "I feel anxious"
+    → Not enough yet
+
+  Turn 2: "I got a new job and feel inadequate"
+    → Maybe enough? Depends on what else is needed
+
+  Turn 3: "I think I'll make mistakes and be exposed"
+    → Clear belief/desire/intention now! Mark Turn 3
+
+MARK: The earliest turn where you have minimum necessary info
+
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  EDITING UTTERANCES                                                   │
+└──────────────────────────────────────────────────────────────────────┘
+
+WHEN TO EDIT:
+  ✓ Typos: "I dont know" → "I don't know"
+  ✓ Unclear: "It's like, you know, weird" → "It feels strange"
+  ✓ AI artifacts: Strange formatting, repeated words
+  ✓ Missing words: "I feeling sad" → "I'm feeling sad"
+
+WHEN NOT TO EDIT:
+  ✗ Natural speech patterns: "um", "uh", colloquialisms
+  ✗ Perfect grammar not needed: Keep conversational
+  ✗ Different wording: Don't rewrite for "better" phrasing
+  ✗ Significant meaning changes: Preserve original intent
+
+REMEMBER: Minimal edits to clarify, not to rewrite
+
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  COGNITIVE APPRAISAL DIMENSIONS                                       │
+└──────────────────────────────────────────────────────────────────────┘
+
+Common dimensions (examples):
+  • Threat: Is the situation dangerous/harmful?
+  • Control: How much control does patient have?
+  • Self-accountability: Is patient responsible?
+  • Other-accountability: Are others responsible?
+  • Outcome likelihood: Will outcome happen?
+  • Coping potential: Can patient cope?
+  • Goal congruence: Aligns with goals?
+
+INTENSITY SCALE:
+  1 = Very low / Barely present
+  2 = Low / Somewhat present
+  3 = Moderate / Clearly present
+  4 = High / Very present
+  5 = Very high / Extremely present
+
+ORDER BY IMPORTANCE:
+  Most important at the top
+  Drag to reorder
+  Max 5 appraisals
+
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  KEYBOARD SHORTCUTS                                                   │
+└──────────────────────────────────────────────────────────────────────┘
+
+Tab         → Move between fields
+Enter       → Confirm in modals
+Esc         → Cancel edit / Close modal
+Click+Drag  → Reorder appraisals
+
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  TROUBLESHOOTING                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+
+ISSUE: Ground truth not loading
+  → Refresh page (F5)
+  → Check browser console (F12)
+  → Contact administrator
+
+ISSUE: Can't save annotation
+  → Check you're logged in
+  → Check internet connection
+  → Try again in a few seconds
+
+ISSUE: Edit button not appearing
+  → Hover directly over utterance text
+  → Try refreshing page
+
+ISSUE: Lost my work
+  → Don't worry! Auto-saves to Firebase
+  → Logout and login again
+  → Select same dialogue - should load saved work
+
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  QUALITY CHECKLIST (Before Saving)                                   │
+└──────────────────────────────────────────────────────────────────────┘
+
+Before clicking "Save Annotation", verify:
+
+  [ ] Read entire dialogue carefully
+  [ ] Edited any weird/unclear utterances
+  [ ] Marked minimum context turn (green checkmark visible)
+  [ ] Reviewed belief - is it accurate?
+  [ ] Reviewed desire - is it the right goal?
+  [ ] Reviewed intention - is it consistent?
+  [ ] Reviewed appraisals - are dimensions correct?
+  [ ] Checked appraisal intensities (1-5)
+  [ ] Reordered appraisals by importance
+  [ ] BDI statements align logically
+  [ ] No fields left blank (unless intentionally)
+
+
+┌──────────────────────────────────────────────────────────────────────┐
+│  CONTACT & SUPPORT                                                    │
+└──────────────────────────────────────────────────────────────────────┘
+
+Questions? Issues? Feedback?
+  → Check REVISION_WORKFLOW_GUIDE.md for detailed documentation
+  → Contact project administrator
+  → Check browser console for error messages (F12)
+
+
+╔══════════════════════════════════════════════════════════════════════╗
+║                     HAPPY ANNOTATING! 🎯                             ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+Remember: You're reviewing and revising, not creating from scratch!
+The ground truth is there to help you, not restrict you.
+Make whatever changes are needed for accuracy.
+
+Average time per dialogue: 5-10 minutes
+Total dialogues: Check progress bar
+Your progress: Automatically tracked
+
+Thank you for your careful and thoughtful annotations! 🙏
+
