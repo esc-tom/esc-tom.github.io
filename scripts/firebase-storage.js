@@ -219,11 +219,11 @@ class FirebaseStorage {
         }
 
         try {
-            // Document ID format: userId_dialogueId
-            const docId = `${this.currentUser.uid}_${dialogueId}`;
-            
-            // Save to Firestore
-            await this.db.collection('annotations').doc(docId).set({
+            // Use per-user annotations subcollection: users/{uid}/annotations/{dialogueId}
+            const userDocRef = this.db.collection('users').doc(this.currentUser.uid);
+            const annRef = userDocRef.collection('annotations').doc(dialogueId);
+
+            await annRef.set({
                 userId: this.currentUser.uid,
                 username: username,
                 dialogueId: dialogueId,
@@ -231,7 +231,7 @@ class FirebaseStorage {
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true }); // merge: true allows updates
             
-            console.log(`Saved annotation: ${username}/${dialogueId}`);
+            console.log(`Saved annotation in user collection: ${username}/${dialogueId}`);
             return true;
         } catch (error) {
             console.error('Error saving annotation:', error);
@@ -250,13 +250,22 @@ class FirebaseStorage {
             console.warn('User not authenticated');
             return null;
         }
-
+        
         try {
-            const docId = `${this.currentUser.uid}_${dialogueId}`;
-            const doc = await this.db.collection('annotations').doc(docId).get();
+            // First try new per-user annotations subcollection
+            const userDocRef = this.db.collection('users').doc(this.currentUser.uid);
+            let doc = await userDocRef.collection('annotations').doc(dialogueId).get();
             
             if (doc.exists) {
-                console.log(`Loaded annotation: ${dialogueId}`);
+                console.log(`Loaded annotation from user collection: ${dialogueId}`);
+                return doc.data();
+            }
+
+            // Fallback to legacy top-level annotations collection (for older data)
+            const legacyDocId = `${this.currentUser.uid}_${dialogueId}`;
+            doc = await this.db.collection('annotations').doc(legacyDocId).get();
+            if (doc.exists) {
+                console.log(`Loaded legacy annotation: ${dialogueId}`);
                 return doc.data();
             }
             
@@ -277,11 +286,10 @@ class FirebaseStorage {
             console.warn('User not authenticated');
             return [];
         }
-
+        
         try {
-            const snapshot = await this.db.collection('annotations')
-                .where('userId', '==', this.currentUser.uid)
-                .get();
+            const userDocRef = this.db.collection('users').doc(this.currentUser.uid);
+            const snapshot = await userDocRef.collection('annotations').get();
             
             const dialogueIds = [];
             snapshot.forEach(doc => {
@@ -362,9 +370,14 @@ class FirebaseStorage {
         }
 
         try {
-            const docId = `${this.currentUser.uid}_${dialogueId}`;
-            const doc = await this.db.collection('annotations').doc(docId).get();
-            return doc.exists;
+            const userDocRef = this.db.collection('users').doc(this.currentUser.uid);
+            const doc = await userDocRef.collection('annotations').doc(dialogueId).get();
+            if (doc.exists) return true;
+
+            // Also check legacy location just in case
+            const legacyDocId = `${this.currentUser.uid}_${dialogueId}`;
+            const legacyDoc = await this.db.collection('annotations').doc(legacyDocId).get();
+            return legacyDoc.exists;
         } catch (error) {
             console.error('Error checking annotation:', error);
             return false;
@@ -404,8 +417,12 @@ class FirebaseStorage {
         }
 
         try {
-            const docId = `${this.currentUser.uid}_${dialogueId}`;
-            await this.db.collection('annotations').doc(docId).delete();
+            const userDocRef = this.db.collection('users').doc(this.currentUser.uid);
+            await userDocRef.collection('annotations').doc(dialogueId).delete();
+            
+            // Best-effort cleanup of any legacy document
+            const legacyDocId = `${this.currentUser.uid}_${dialogueId}`;
+            await this.db.collection('annotations').doc(legacyDocId).delete().catch(() => {});
             
             console.log(`🗑️ Deleted annotation: ${dialogueId}`);
             return true;
@@ -425,15 +442,25 @@ class FirebaseStorage {
         }
 
         try {
-            const snapshot = await this.db.collection('annotations').get();
             const annotations = [];
             
-            snapshot.forEach(doc => {
-                annotations.push({
-                    id: doc.id,
-                    ...doc.data()
+            // Iterate over all users and their annotations subcollections
+            const usersSnap = await this.db.collection('users').get();
+            for (const userDoc of usersSnap.docs) {
+                const userId = userDoc.id;
+                const annSnap = await this.db.collection('users')
+                    .doc(userId)
+                    .collection('annotations')
+                    .get();
+                
+                annSnap.forEach(doc => {
+                    annotations.push({
+                        id: doc.id,
+                        userId,
+                        ...doc.data()
+                    });
                 });
-            });
+            }
             
             console.log(`📊 Retrieved ${annotations.length} total annotations`);
             return annotations;
@@ -457,9 +484,10 @@ class FirebaseStorage {
             const userDoc = await this.db.collection('users').doc(this.currentUser.uid).get();
             const userData = userDoc.data();
 
-            // Get all annotations
-            const annotationsSnapshot = await this.db.collection('annotations')
-                .where('userId', '==', this.currentUser.uid)
+            // Get all annotations from user subcollection
+            const annotationsSnapshot = await this.db.collection('users')
+                .doc(this.currentUser.uid)
+                .collection('annotations')
                 .get();
             
             const annotations = {};
