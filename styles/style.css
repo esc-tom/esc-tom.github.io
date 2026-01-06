@@ -427,8 +427,8 @@ header h1 {
 }
 
 .dialogue-container {
-    min-height: 500px;
-    max-height: 600px;
+    min-height: 600px;
+    max-height: 1000px;
     overflow-y: auto;
     margin-bottom: 20px;
     padding: 20px;
@@ -894,11 +894,85 @@ header h1 {
 }
 
 .dialogue-info-box {
-    margin-top: 20px;
-    padding: 14px 18px;
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+    margin-bottom: 20px;
+    padding: 20px 24px;
+    background: linear-gradient(135deg, #eef2ff 0%, #e0f2fe 100%);
+    border: 2px solid #4f46e5;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
+}
+
+.instructions-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid rgba(79, 70, 229, 0.2);
+}
+
+.instructions-icon {
+    font-size: 28px;
+    line-height: 1;
+}
+
+.instructions-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e40af;
+    letter-spacing: -0.3px;
+}
+
+.instructions-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.instruction-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.7);
     border-radius: var(--radius-md);
+    border-left: 3px solid #4f46e5;
+    transition: all 0.2s ease;
+}
+
+.instruction-step:hover {
+    background: rgba(255, 255, 255, 0.9);
+    transform: translateX(2px);
+}
+
+.step-number {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+    color: white;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 14px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+}
+
+.step-text {
+    flex: 1;
+    font-size: 14px;
+    color: #1e293b;
+    line-height: 1.6;
+    font-weight: 500;
+    padding-top: 2px;
+}
+
+.step-text strong {
+    color: #1e40af;
+    font-weight: 700;
 }
 
 .info-text {

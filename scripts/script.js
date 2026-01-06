@@ -633,27 +633,13 @@ function parseBigFiveTraits(traitsText) {
 }
 
 // Display context (situation and thought)
+// NOTE: Hidden from annotators - situation and thought are not shown
 function displayContext() {
     const contextSection = document.getElementById('context-section');
-    const situationEl = document.getElementById('context-situation');
-    const thoughtEl = document.getElementById('context-thought');
-    
-    if (!currentDialogue || (!currentDialogue.situation && !currentDialogue.thought)) {
+    if (contextSection) {
+        // Always hide the context section from annotators
         contextSection.style.display = 'none';
-        return;
     }
-    
-    // Display situation
-    if (currentDialogue.situation) {
-        situationEl.textContent = currentDialogue.situation;
-    }
-    
-    // Display thought
-    if (currentDialogue.thought) {
-        thoughtEl.textContent = currentDialogue.thought;
-    }
-    
-    contextSection.style.display = 'block';
 }
 
 // Display persona information
