@@ -21,7 +21,7 @@ async function initFirebaseStorage() {
     
     if (success) {
         firebaseReady = true;
-        console.log('✅ Firebase ready');
+        console.log('Firebase ready');
     } else {
         console.error('❌ Firebase initialization failed');
     }
@@ -282,7 +282,7 @@ async function loadDialogues() {
             allDialogues.push(dialogue);
         }
         
-        console.log(`✅ Loaded ${allDialogues.length} dialogues with ground truth`);
+        console.log(`Loaded ${allDialogues.length} dialogues with ground truth`);
         
         // Load assigned dialogues for current user if logged in
         if (currentUsername && firebaseReady) {
@@ -315,7 +315,7 @@ async function sampleDialogues(n, excludeIds = []) {
     try {
         // Ensure dialogues are loaded
         if (allDialogues.length === 0) {
-            console.error('❌ Cannot sample dialogues: allDialogues is empty!');
+            console.error('Cannot sample dialogues: allDialogues is empty!');
             throw new Error('Dialogues not loaded. Please refresh the page.');
         }
         
@@ -840,7 +840,7 @@ async function saveAnnotationToStorage(entryId, annotation) {
 
     try {
         await firebaseStorage.saveAnnotation(currentUsername, entryId, annotation);
-        console.log(`✅ Saved to Firebase: ${entryId}`);
+        console.log(`Saved to Firebase: ${entryId}`);
         return true;
     } catch (error) {
         console.error('Error saving annotation:', error);
@@ -901,7 +901,7 @@ function loadGroundTruth() {
         updateAppraisalOptions();
     }
     
-    console.log('✅ Ground truth loaded and pre-populated successfully');
+    console.log('Ground truth loaded and pre-populated successfully');
 }
 
 // Load existing annotation if available
@@ -1542,7 +1542,7 @@ async function performSave() {
         // Save to Firebase
         await saveAnnotationToStorage(currentDialogue.entry_id, annotation);
         
-        showStatus('✅ Annotation saved successfully!', 'success');
+        showStatus('Annotation saved successfully!', 'success');
         
         // Update annotation status and progress bar
         annotationStatus[currentDialogue.entry_id] = true;
@@ -1562,7 +1562,7 @@ async function performSave() {
             setTimeout(async () => {
                 dialogueSelect.value = nextUnannotated;
                 await handleDialogueChange();
-                showStatus(`✅ Loaded next dialogue: ${allDialogues[nextUnannotated].entry_id}`, 'success');
+                showStatus(`Loaded next dialogue: ${allDialogues[nextUnannotated].entry_id}`, 'success');
             }, 1500);
         } else {
             // All dialogues completed!

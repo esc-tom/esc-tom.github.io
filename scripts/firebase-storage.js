@@ -39,7 +39,7 @@ class FirebaseStorage {
             });
             
             this.initialized = true;
-            console.log('✅ Firebase initialized successfully');
+            console.log('Firebase initialized successfully');
             return true;
         } catch (error) {
             console.error('❌ Firebase initialization failed:', error);
@@ -88,7 +88,7 @@ class FirebaseStorage {
             // Store user profile in Firestore with assigned dialogues
             await this.db.collection('users').doc(this.currentUser.uid).set(userDoc);
             
-            console.log('✅ User registered:', username);
+            console.log('User registered:', username);
             console.log('📋 Assigned dialogues:', assignedDialogues.length);
             return { 
                 success: true, 
@@ -126,7 +126,7 @@ class FirebaseStorage {
             const userCredential = await this.auth.signInWithEmailAndPassword(email, password);
             this.currentUser = userCredential.user;
             
-            console.log('✅ User logged in:', username);
+            console.log('User logged in:', username);
             return { 
                 success: true, 
                 uid: this.currentUser.uid,
@@ -156,7 +156,7 @@ class FirebaseStorage {
         try {
             await this.auth.signOut();
             this.currentUser = null;
-            console.log('✅ User logged out');
+            console.log('User logged out');
         } catch (error) {
             console.error('Error logging out:', error);
         }
@@ -231,7 +231,7 @@ class FirebaseStorage {
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true }); // merge: true allows updates
             
-            console.log(`✅ Saved annotation: ${username}/${dialogueId}`);
+            console.log(`Saved annotation: ${username}/${dialogueId}`);
             return true;
         } catch (error) {
             console.error('Error saving annotation:', error);
@@ -256,7 +256,7 @@ class FirebaseStorage {
             const doc = await this.db.collection('annotations').doc(docId).get();
             
             if (doc.exists) {
-                console.log(`✅ Loaded annotation: ${dialogueId}`);
+                console.log(`Loaded annotation: ${dialogueId}`);
                 return doc.data();
             }
             
@@ -497,7 +497,7 @@ class FirebaseStorage {
                 'prolific.status': 'completed'
             });
             
-            console.log('✅ Marked Prolific study as complete');
+            console.log('Marked Prolific study as complete');
             return true;
         } catch (error) {
             console.error('Error marking Prolific complete:', error);
