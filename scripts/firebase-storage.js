@@ -53,9 +53,10 @@ class FirebaseStorage {
      * @param {string} username - User's chosen username
      * @param {string} password - User's password (min 6 chars)
      * @param {Array<string>} assignedDialogues - Array of dialogue IDs assigned to user
+     * @param {Object} prolificData - Optional Prolific metadata {participantId, studyId, sessionId}
      * @returns {Promise<Object>} - {success, uid, message}
      */
-    async registerUser(username, password, assignedDialogues = []) {
+    async registerUser(username, password, assignedDialogues = [], prolificData = null) {
         try {
             // Create email from username (Firebase Auth requires email)
             // Format: username@annotation.local
@@ -65,13 +66,27 @@ class FirebaseStorage {
             const userCredential = await this.auth.createUserWithEmailAndPassword(email, password);
             this.currentUser = userCredential.user;
             
-            // Store user profile in Firestore with assigned dialogues
-            await this.db.collection('users').doc(this.currentUser.uid).set({
+            // Prepare user document
+            const userDoc = {
                 username: username,
                 email: email,
                 assignedDialogues: assignedDialogues,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+            };
+            
+            // Add Prolific metadata if provided
+            if (prolificData) {
+                userDoc.prolific = {
+                    participantId: prolificData.participantId,
+                    studyId: prolificData.studyId,
+                    sessionId: prolificData.sessionId,
+                    registeredAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                console.log('👥 Prolific participant registered:', prolificData.participantId);
+            }
+            
+            // Store user profile in Firestore with assigned dialogues
+            await this.db.collection('users').doc(this.currentUser.uid).set(userDoc);
             
             console.log('✅ User registered:', username);
             console.log('📋 Assigned dialogues:', assignedDialogues.length);
@@ -461,6 +476,72 @@ class FirebaseStorage {
         } catch (error) {
             console.error('Error exporting data:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Mark Prolific study as completed
+     * @param {number} completionTime - Time taken to complete (in seconds)
+     * @returns {Promise<boolean>}
+     */
+    async markProlificComplete(completionTime) {
+        if (!this.currentUser) {
+            console.warn('User not authenticated');
+            return false;
+        }
+
+        try {
+            await this.db.collection('users').doc(this.currentUser.uid).update({
+                'prolific.completedAt': firebase.firestore.FieldValue.serverTimestamp(),
+                'prolific.completionTime': completionTime,
+                'prolific.status': 'completed'
+            });
+            
+            console.log('✅ Marked Prolific study as complete');
+            return true;
+        } catch (error) {
+            console.error('Error marking Prolific complete:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get Prolific data for current user
+     * @returns {Promise<Object|null>}
+     */
+    async getProlificData() {
+        if (!this.currentUser) {
+            return null;
+        }
+
+        try {
+            const userDoc = await this.db.collection('users').doc(this.currentUser.uid).get();
+            if (userDoc.exists) {
+                const data = userDoc.data();
+                return data.prolific || null;
+            }
+            return null;
+        } catch (error) {
+            console.error('Error getting Prolific data:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Check if Prolific participant already exists
+     * @param {string} participantId - Prolific participant ID
+     * @returns {Promise<boolean>}
+     */
+    async isProlificParticipantRegistered(participantId) {
+        try {
+            const snapshot = await this.db.collection('users')
+                .where('prolific.participantId', '==', participantId)
+                .get();
+            
+            return !snapshot.empty;
+        } catch (error) {
+            console.error('Error checking Prolific participant:', error);
+            return false;
         }
     }
 }

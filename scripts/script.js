@@ -45,6 +45,11 @@ let modifiedUtterances = {}; // Track modified utterances { turnIndex: newUttera
 const MAX_APPRAISALS = 5;
 const DIALOGUES_PER_USER = 10; // Number of dialogues to assign per user
 
+// Prolific integration state
+let isProlific = false; // Whether current session is from Prolific
+let prolificParams = null; // Prolific URL parameters
+let studyStartTime = null; // When study started (for timing)
+
 // DOM Elements
 const dialogueSelect = document.getElementById('dialogue-select');
 const dialogueContainer = document.getElementById('dialogue-container');
@@ -116,20 +121,92 @@ async function init() {
     await loadDialogues();
     await loadCognitiveDimensions();
     
-    // Check if user is already logged in
-    const savedUsername = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-    if (savedUsername) {
-        currentUsername = savedUsername;
-        // Initialize Firebase to verify user session
+    // Check if this is a Prolific session
+    isProlific = isProlificSession();
+    if (isProlific) {
+        prolificParams = getProlificParams();
+        studyStartTime = Date.now();
+        logProlificInfo('Prolific session detected', prolificParams);
+        
+        // Handle Prolific participant
+        await handleProlificSession();
+    } else {
+        // Regular session flow
+        // Check if user is already logged in
+        const savedUsername = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+        if (savedUsername) {
+            currentUsername = savedUsername;
+            // Initialize Firebase to verify user session
+            if (!firebaseReady) {
+                await initFirebaseStorage();
+            }
+            // Load assigned dialogues will be called in initializeApp > loadDialogues
+            hideLoginModal();
+            await initializeApp();
+        } else {
+            // Show login modal
+            setupLoginListeners();
+        }
+    }
+}
+
+// Handle Prolific participant session
+async function handleProlificSession() {
+    try {
         if (!firebaseReady) {
             await initFirebaseStorage();
         }
-        // Load assigned dialogues will be called in initializeApp > loadDialogues
+        
+        // Check if this participant already registered
+        const isRegistered = await firebaseStorage.isProlificParticipantRegistered(prolificParams.participantId);
+        
+        if (isRegistered) {
+            logProlificInfo('Participant already registered, preventing duplicate');
+            
+            // Show error message instead of allowing duplicate participation
+            hideLoginModal();
+            showProlificDuplicateError();
+            return;
+        }
+        
+        // Auto-register Prolific participant
+        const username = `prolific_${prolificParams.participantId}`;
+        const password = generateProlificPassword();
+        
+        // Store password temporarily for this session
+        sessionStorage.setItem('prolific_temp_password', password);
+        
+        logProlificInfo('Auto-registering Prolific participant', { username });
+        
+        // Sample dialogues
+        const sampledDialogues = await sampleDialogues(DIALOGUES_PER_USER);
+        
+        // Register user with Prolific metadata
+        const result = await firebaseStorage.registerUser(
+            username, 
+            password, 
+            sampledDialogues,
+            prolificParams
+        );
+        
+        if (!result.success) {
+            console.error('Prolific registration failed:', result.message);
+            showProlificError('Registration failed. Please contact the researcher.');
+            return;
+        }
+        
+        currentUsername = username;
+        assignedDialogues = result.assignedDialogues || sampledDialogues;
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, username);
+        
+        // Hide login modal and start annotation
         hideLoginModal();
+        showProlificWelcome();
         await initializeApp();
-    } else {
-        // Show login modal
-        setupLoginListeners();
+        
+    } catch (error) {
+        console.error('Error handling Prolific session:', error);
+        showProlificError('An error occurred. Please contact the researcher.');
     }
 }
 
@@ -1488,10 +1565,16 @@ async function performSave() {
                 showStatus(`✅ Loaded next dialogue: ${allDialogues[nextUnannotated].entry_id}`, 'success');
             }, 1500);
         } else {
+            // All dialogues completed!
             const completionMsg = assignedDialogues.length > 0 
                 ? `🎉 All ${assignedDialogues.length} assigned dialogues completed!`
                 : '🎉 All dialogues completed!';
             showStatus(completionMsg, 'success');
+            
+            // Handle Prolific completion
+            if (isProlific) {
+                await handleProlificCompletion();
+            }
         }
     } catch (error) {
         console.error('Error saving annotation:', error);
@@ -1916,6 +1999,129 @@ function handleLogout() {
         location.reload();
     }
 }
+
+// ========== PROLIFIC INTEGRATION FUNCTIONS ==========
+
+// Handle Prolific study completion
+async function handleProlificCompletion() {
+    try {
+        // Calculate completion time
+        const completionTime = studyStartTime ? Math.floor((Date.now() - studyStartTime) / 1000) : 0;
+        
+        logProlificInfo('Study completed', { completionTime: `${completionTime}s` });
+        
+        // Mark completion in Firebase
+        await firebaseStorage.markProlificComplete(completionTime);
+        
+        // Show completion screen
+        showProlificCompletionScreen();
+        
+        // Redirect to Prolific if enabled
+        if (PROLIFIC_CONFIG.redirectOnComplete) {
+            setTimeout(() => {
+                const redirectURL = getProlificCompletionURL();
+                logProlificInfo('Redirecting to Prolific', { url: redirectURL });
+                window.location.href = redirectURL;
+            }, 5000); // 5 second delay to show completion message
+        }
+    } catch (error) {
+        console.error('Error handling Prolific completion:', error);
+        // Still try to redirect even if Firebase update fails
+        if (PROLIFIC_CONFIG.redirectOnComplete) {
+            setTimeout(() => {
+                window.location.href = getProlificCompletionURL();
+            }, 5000);
+        }
+    }
+}
+
+// Show Prolific welcome message
+function showProlificWelcome() {
+    const message = `
+        <div style="padding: 20px; background: #e7f3ff; border: 2px solid #2196F3; border-radius: 8px; margin: 20px;">
+            <h3 style="margin-top: 0; color: #1976D2;">👋 Welcome Prolific Participant!</h3>
+            <p>Thank you for participating in our study. You have been assigned <strong>10 unique dialogues</strong> to annotate.</p>
+            <p><strong>Instructions:</strong></p>
+            <ul style="text-align: left; margin: 10px 0;">
+                <li>Review each dialogue carefully</li>
+                <li>Revise the pre-filled annotations as needed</li>
+                <li>Mark the minimum context turn</li>
+                <li>Save each annotation before moving to the next</li>
+            </ul>
+            <p><strong>Important:</strong> After completing all 10 dialogues, you will be automatically redirected back to Prolific.</p>
+        </div>
+    `;
+    showStatus(message, 'info', 10000); // Show for 10 seconds
+}
+
+// Show Prolific completion screen
+function showProlificCompletionScreen() {
+    const completionCode = PROLIFIC_CONFIG.completionCode;
+    const showCode = PROLIFIC_CONFIG.showCompletionCode;
+    
+    const message = `
+        <div style="padding: 30px; background: #e8f5e9; border: 3px solid #4CAF50; border-radius: 12px; text-align: center;">
+            <h2 style="color: #2E7D32; margin-top: 0;">🎉 Study Complete!</h2>
+            <p style="font-size: 18px;">Thank you for your participation!</p>
+            ${showCode ? `
+                <div style="margin: 20px 0; padding: 15px; background: white; border-radius: 8px;">
+                    <p style="margin: 0 0 10px 0; font-weight: bold;">Your Completion Code:</p>
+                    <p style="font-size: 24px; font-weight: bold; color: #1976D2; margin: 0; letter-spacing: 2px;">${completionCode}</p>
+                </div>
+                <p style="font-size: 14px; color: #666;">
+                    You will be automatically redirected to Prolific in 5 seconds.<br/>
+                    If not redirected, please use the completion code above.
+                </p>
+            ` : `
+                <p style="margin-top: 20px;">Redirecting you back to Prolific...</p>
+            `}
+        </div>
+    `;
+    
+    // Replace main content with completion screen
+    const mainContent = document.querySelector('.main-content');
+    if (mainContent) {
+        mainContent.innerHTML = message;
+    } else {
+        showStatus(message, 'success', 30000);
+    }
+}
+
+// Show Prolific duplicate error
+function showProlificDuplicateError() {
+    const message = `
+        <div style="padding: 30px; background: #ffebee; border: 3px solid #f44336; border-radius: 12px; text-align: center; max-width: 600px; margin: 50px auto;">
+            <h2 style="color: #c62828; margin-top: 0;">⚠️ Already Participated</h2>
+            <p style="font-size: 16px;">You have already participated in this study.</p>
+            <p style="margin-top: 20px; color: #666;">
+                Our records show that your Prolific ID has already been used.<br/>
+                Please return to Prolific and return this submission.
+            </p>
+            <button onclick="window.close()" style="margin-top: 20px; padding: 12px 24px; background: #f44336; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer;">
+                Close Window
+            </button>
+        </div>
+    `;
+    
+    document.body.innerHTML = message;
+}
+
+// Show Prolific error
+function showProlificError(message) {
+    const errorHTML = `
+        <div style="padding: 30px; background: #ffebee; border: 3px solid #f44336; border-radius: 12px; text-align: center; max-width: 600px; margin: 50px auto;">
+            <h2 style="color: #c62828; margin-top: 0;">❌ Error</h2>
+            <p style="font-size: 16px;">${message}</p>
+            <p style="margin-top: 20px; color: #666;">
+                Please return to Prolific and report this issue to the researcher.
+            </p>
+        </div>
+    `;
+    
+    document.body.innerHTML = errorHTML;
+}
+
+// ========== END PROLIFIC INTEGRATION ==========
 
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', async () => {

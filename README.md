@@ -2,8 +2,11 @@
 
 A web-based dialogue annotation tool for ESC-ToM (Emotional Support Conversation - Theory of Mind) research. This static site uses a **revision-based workflow** where annotators review and revise pre-filled ground truth annotations for therapeutic dialogues.
 
+**🎯 NEW: Fully integrated with Prolific for crowdsourced data collection!**
+
 ## Features
 
+- **👥 Prolific Integration**: Seamless integration with Prolific for crowdsourcing (auto-registration, completion tracking, automatic redirect)
 - **🎲 Automatic Assignment**: Each user is automatically assigned 10 unique dialogues upon registration (no overlap between users)
 - **🔄 Revision-Based Workflow**: Ground truth BDI and appraisals are pre-filled for review and revision
 - **✏️ Utterance Editing**: Edit dialogue utterances to fix weird/unclear content
@@ -47,3 +50,21 @@ A web-based dialogue annotation tool for ESC-ToM (Emotional Support Conversation
 - You'll only see your assigned 10 dialogues (no overlap with other annotators)
 - Your assignments and progress are saved across sessions
 - Use the links at the bottom of the login/register screen to switch between modes
+
+### For Prolific Researchers
+
+Want to collect annotations via Prolific? It's fully integrated and ready to use!
+
+1. **Read the guide**: See `PROLIFIC_INTEGRATION_GUIDE.md` for complete setup instructions
+2. **Configure**: Update your completion code in `scripts/prolific-config.js`
+3. **Set URL**: Use your GitHub Pages URL with Prolific redirect parameters
+4. **Test**: Use Prolific's preview feature to test the flow
+5. **Launch**: Publish your study and start collecting data!
+
+**Key Features:**
+- ✅ Automatic participant registration
+- ✅ Duplicate prevention
+- ✅ Completion tracking
+- ✅ Automatic redirect back to Prolific
+- ✅ Built-in completion code display
+- ✅ Quality control features
