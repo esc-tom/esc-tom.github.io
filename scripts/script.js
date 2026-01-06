@@ -39,9 +39,8 @@ let currentDialogue = null;
 let currentTurnIndex = 0;
 let cognitiveDimensions = [];
 let selectedAppraisals = [];
-let readyToAnnotateTurn = null; // Tracks when user clicked "Ready to Annotate"
 let minContextTurnIndex = null; // Tracks which turn provides minimum necessary context
-let modifiedUtterances = {}; // Track modified utterances { turnIndex: newUtterance }
+let modifiedUtterances = {}; // Track modified utterances { turnIndex: { plain, marked } }
 const MAX_APPRAISALS = 5;
 const DIALOGUES_PER_USER = 10; // Number of dialogues to assign per user
 
@@ -374,6 +373,8 @@ async function checkAnnotationProgress() {
 
     let annotatedCount = 0;
     
+    let totalToAnnotate = allDialogues.length;
+    
     try {
         const annotatedDialogues = await firebaseStorage.getUserAnnotations();
         
@@ -390,13 +391,14 @@ async function checkAnnotationProgress() {
         }
         
         // Show progress relative to assigned dialogues
-        const totalToAnnotate = assignedDialogues.length > 0 ? assignedDialogues.length : allDialogues.length;
+        totalToAnnotate = assignedDialogues.length > 0 ? assignedDialogues.length : allDialogues.length;
         console.log(`📊 Progress: ${annotatedCount}/${totalToAnnotate} dialogues annotated`);
     } catch (error) {
         console.error('Error checking progress:', error);
     }
     
-    updateProgressBar(annotatedCount, allDialogues.length);
+    // Update progress bar using assigned dialogues only
+    updateProgressBar(annotatedCount, totalToAnnotate);
 }
 
 function updateProgressBar(completed, total) {
@@ -559,7 +561,6 @@ async function handleDialogueChange() {
 
     currentDialogue = allDialogues[selectedIndex];
     currentTurnIndex = 0;
-    readyToAnnotateTurn = 0; // Set to 0 since we auto-show exploration turns
     minContextTurnIndex = null; // Reset min context marker
     modifiedUtterances = {}; // Reset modified utterances
     
@@ -780,6 +781,108 @@ function addPrefix(type, value) {
     return `${prefix} ${trimmed}`;
 }
 
+// Mark the edited span between original and edited text
+function markEditedSpan(original, edited) {
+    if (original === edited) return edited;
+    
+    // Tokenize into words + whitespace to preserve spacing
+    const tokenize = (text) => text.match(/\s+|[^\s]+/g) || [];
+    const origTokens = tokenize(original);
+    const editTokens = tokenize(edited);
+    
+    const m = origTokens.length;
+    const n = editTokens.length;
+    
+    // LCS DP table
+    const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+    for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+            if (origTokens[i - 1] === editTokens[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+            } else {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+            }
+        }
+    }
+    
+    // Backtrack to find matching edited token indices
+    const matchedEdited = new Set();
+    let i = m, j = n;
+    while (i > 0 && j > 0) {
+        if (origTokens[i - 1] === editTokens[j - 1]) {
+            matchedEdited.add(j - 1);
+            i--; j--;
+        } else if (dp[i - 1][j] >= dp[i][j - 1]) {
+            i--;
+        } else {
+            j--;
+        }
+    }
+    
+    // Build result with markers around every differing span
+    let result = '';
+    let inSpan = false;
+    for (let k = 0; k < editTokens.length; k++) {
+        const isMatch = matchedEdited.has(k);
+        if (!isMatch && !inSpan) {
+            result += '<|EDIT_START|>';
+            inSpan = true;
+        }
+        if (isMatch && inSpan) {
+            result += '<|EDIT_END|>';
+            inSpan = false;
+        }
+        result += editTokens[k];
+    }
+    if (inSpan) result += '<|EDIT_END|>';
+    
+    return result;
+}
+
+// Remove edit markers from text
+function stripEditMarkers(text) {
+    if (!text) return '';
+    return text.replace(/<\|EDIT_START\|>/g, '').replace(/<\|EDIT_END\|>/g, '');
+}
+
+// Count how many edit spans are present in a marked string
+function countEditSpans(text) {
+    if (!text) return 0;
+    const matches = text.match(/<\|EDIT_START\|>/g);
+    return matches ? matches.length : 0;
+}
+
+// Render text with edit markers into a DOM element
+function renderMarkedText(container, text) {
+    // Clear existing content
+    container.innerHTML = '';
+    
+    // Split by markers, keep them as separate tokens
+    const parts = text.split(/(<\|EDIT_START\|>|<\|EDIT_END\|>)/);
+    let inEdit = false;
+    
+    parts.forEach(part => {
+        if (part === '<|EDIT_START|>') {
+            inEdit = true;
+            return;
+        }
+        if (part === '<|EDIT_END|>') {
+            inEdit = false;
+            return;
+        }
+        if (!part) return;
+        
+        if (inEdit) {
+            const span = document.createElement('span');
+            span.className = 'utterance-edit-span';
+            span.textContent = part;
+            container.appendChild(span);
+        } else {
+            container.appendChild(document.createTextNode(part));
+        }
+    });
+}
+
 // Enable/disable annotation inputs
 function enableAnnotationInputs() {
     beliefInput.disabled = false;
@@ -910,22 +1013,15 @@ async function loadExistingAnnotation() {
         const annotation = await getAnnotationFromStorage(currentDialogue.entry_id);
         
         if (annotation) {
-            // Populate form fields (strip prefixes when loading)
-            beliefInput.value = stripPrefix('belief', annotation.belief || '');
-            desireInput.value = stripPrefix('desire', annotation.desire || '');
-            intentionInput.value = stripPrefix('intention', annotation.intention || '');
+            // Populate form fields (strip edit markers and prefixes when loading)
+            beliefInput.value = stripPrefix('belief', stripEditMarkers(annotation.belief || ''));
+            desireInput.value = stripPrefix('desire', stripEditMarkers(annotation.desire || ''));
+            intentionInput.value = stripPrefix('intention', stripEditMarkers(annotation.intention || ''));
             
             // Populate cognitive appraisals
             if (annotation.cognitive_appraisals) {
                 selectedAppraisals = annotation.cognitive_appraisals;
                 renderSelectedAppraisals();
-            }
-            
-            // Load ready to annotate turn (set to 0 for exploration-only mode)
-            if (annotation.ready_to_annotate_turn !== undefined && annotation.ready_to_annotate_turn !== null) {
-                readyToAnnotateTurn = annotation.ready_to_annotate_turn;
-            } else {
-                readyToAnnotateTurn = 0;
             }
             
             // Load minimum context turn
@@ -942,7 +1038,12 @@ async function loadExistingAnnotation() {
             
             // Load modified utterances if any
             if (annotation.modified_utterances) {
-                modifiedUtterances = annotation.modified_utterances;
+                // Rebuild with plain and marked forms
+                modifiedUtterances = {};
+                Object.entries(annotation.modified_utterances).forEach(([idx, markedText]) => {
+                    const plain = stripEditMarkers(markedText);
+                    modifiedUtterances[idx] = { plain, marked: markedText };
+                });
             }
             
             showStatus('Loaded existing annotation', 'success');
@@ -961,7 +1062,14 @@ function createTurnPairElement(turn1, turn2, startIndex, turnPairNumber) {
     pairDiv.dataset.turnPairNumber = turnPairNumber;
     
     // Add click handler for marking minimum context
-    pairDiv.addEventListener('click', () => markMinContextTurn(startIndex, turnPairNumber, pairDiv));
+    pairDiv.addEventListener('click', () => {
+        // If any utterance in this pair is currently in edit mode, do NOT mark context
+        const isEditing = pairDiv.querySelector('.utterance-edit-mode') !== null;
+        if (isEditing) {
+            return;
+        }
+        markMinContextTurn(startIndex, turnPairNumber, pairDiv);
+    });
     
     // Add min context indicator button
     const minContextBtn = document.createElement('button');
@@ -1037,11 +1145,13 @@ function createSingleTurnElement(turn, index) {
     utterance.dataset.turnIndex = index;
     
     // Check if this utterance has been modified
-    const displayText = modifiedUtterances[index] || turn.utterance;
-    utterance.textContent = displayText;
+    const modInfo = modifiedUtterances[index];
+    const displayText = modInfo ? modInfo.marked : turn.utterance;
+    const editPrefill = modInfo ? modInfo.plain : turn.utterance;
+    renderMarkedText(utterance, displayText);
     
     // Add modified indicator if utterance was changed
-    if (modifiedUtterances[index]) {
+    if (modInfo) {
         const modIndicator = document.createElement('span');
         modIndicator.className = 'utterance-modified-indicator';
         modIndicator.textContent = '(edited)';
@@ -1055,7 +1165,7 @@ function createSingleTurnElement(turn, index) {
     editBtn.textContent = 'Edit';
     editBtn.onclick = (e) => {
         e.stopPropagation(); // Prevent turn pair click
-        enterUtteranceEditMode(turnDiv, index, displayText);
+        enterUtteranceEditMode(turnDiv, index, editPrefill);
     };
     utterance.appendChild(editBtn);
     
@@ -1084,12 +1194,18 @@ function enterUtteranceEditMode(turnDiv, turnIndex, currentText) {
     const saveBtn = document.createElement('button');
     saveBtn.className = 'utterance-save-btn';
     saveBtn.textContent = 'Save';
-    saveBtn.onclick = () => saveUtteranceEdit(turnDiv, turnIndex, textarea.value);
+    saveBtn.onclick = (e) => {
+        e.stopPropagation();
+        saveUtteranceEdit(turnDiv, turnIndex, textarea.value);
+    };
     
     const cancelBtn = document.createElement('button');
     cancelBtn.className = 'utterance-cancel-btn';
     cancelBtn.textContent = 'Cancel';
-    cancelBtn.onclick = () => cancelUtteranceEdit(turnDiv, turnIndex);
+    cancelBtn.onclick = (e) => {
+        e.stopPropagation();
+        cancelUtteranceEdit(turnDiv, turnIndex);
+    };
     
     actionsDiv.appendChild(saveBtn);
     actionsDiv.appendChild(cancelBtn);
@@ -1112,8 +1228,10 @@ function saveUtteranceEdit(turnDiv, turnIndex, newText) {
     
     // Save to modified utterances tracking
     const originalText = currentDialogue.dialogue_history[turnIndex].utterance;
-    if (newText.trim() !== originalText.trim()) {
-        modifiedUtterances[turnIndex] = newText.trim();
+    const trimmedNew = newText.trim();
+    if (trimmedNew !== originalText.trim()) {
+        const marked = markEditedSpan(originalText, trimmedNew);
+        modifiedUtterances[turnIndex] = { plain: trimmedNew, marked };
     } else {
         // If changed back to original, remove from modifications
         delete modifiedUtterances[turnIndex];
@@ -1143,11 +1261,13 @@ function createUtteranceDiv(turn, index) {
     utterance.className = 'utterance';
     utterance.dataset.turnIndex = index;
     
-    const displayText = modifiedUtterances[index] || turn.utterance;
-    utterance.textContent = displayText;
+    const modInfo = modifiedUtterances[index];
+    const displayText = modInfo ? modInfo.marked : turn.utterance;
+    const editPrefill = modInfo ? modInfo.plain : turn.utterance;
+    renderMarkedText(utterance, displayText);
     
     // Add modified indicator if utterance was changed
-    if (modifiedUtterances[index]) {
+    if (modInfo) {
         const modIndicator = document.createElement('span');
         modIndicator.className = 'utterance-modified-indicator';
         modIndicator.textContent = '(edited)';
@@ -1162,7 +1282,7 @@ function createUtteranceDiv(turn, index) {
     editBtn.onclick = (e) => {
         e.stopPropagation();
         const turnDiv = e.target.closest('.dialogue-turn');
-        enterUtteranceEditMode(turnDiv, index, displayText);
+        enterUtteranceEditMode(turnDiv, index, editPrefill);
     };
     utterance.appendChild(editBtn);
     
@@ -1452,6 +1572,13 @@ async function saveAnnotation() {
         return;
     }
     
+    // Require minimum context selection before saving
+    if (minContextTurnIndex === null || minContextTurnIndex === undefined) {
+        showStatus('Please select the minimum context turn before saving your annotation.', 'error');
+        setTimeout(() => hideStatus(), 3000);
+        return;
+    }
+    
     // Show confirmation modal
     showConfirmModal();
 }
@@ -1462,7 +1589,6 @@ function showConfirmModal() {
     const dialogueId = document.getElementById('confirm-dialogue-id');
     const turns = document.getElementById('confirm-turns');
     const appraisals = document.getElementById('confirm-appraisals');
-    const readyTurn = document.getElementById('confirm-ready-turn');
     
     // Populate modal with current annotation info
     dialogueId.textContent = currentDialogue.entry_id;
@@ -1471,18 +1597,6 @@ function showConfirmModal() {
     const currentPairs = Math.ceil(currentTurnIndex / 2);
     turns.textContent = `${currentPairs} of ${totalTurnPairs} turn pairs`;
     appraisals.textContent = `${selectedAppraisals.length} of 5`;
-    
-    // Show ready to annotate turn
-    if (readyToAnnotateTurn !== null) {
-        const readyPairs = Math.ceil(readyToAnnotateTurn / 2);
-        readyTurn.textContent = `Turn pair ${readyPairs} (${readyToAnnotateTurn} utterances)`;
-        readyTurn.style.color = 'var(--success-color)';
-        readyTurn.style.fontWeight = '600';
-    } else {
-        readyTurn.textContent = 'Not marked';
-        readyTurn.style.color = 'var(--text-secondary)';
-        readyTurn.style.fontWeight = 'normal';
-    }
     
     // Show minimum context turn
     let minContextElement = document.getElementById('confirm-min-context');
@@ -1510,6 +1624,46 @@ function showConfirmModal() {
         minContextElement.style.fontWeight = 'normal';
     }
     
+    // Compute and display edit statistics
+    const editedUtterancesCount = Object.keys(modifiedUtterances).length;
+    const utteranceEditSpans = Object.values(modifiedUtterances).reduce(
+        (sum, info) => sum + countEditSpans(info.marked),
+        0
+    );
+    
+    // Compute BDI edit spans
+    const gt = currentDialogue.ground_truth || {};
+    const editedBelief = addPrefix('belief', beliefInput.value || '');
+    const originalBelief = gt.belief ? addPrefix('belief', gt.belief || '') : editedBelief;
+    const beliefValue = (editedBelief !== originalBelief)
+        ? markEditedSpan(originalBelief, editedBelief)
+        : editedBelief;
+    
+    const editedDesire = addPrefix('desire', desireInput.value || '');
+    const originalDesire = gt.desire ? addPrefix('desire', gt.desire || '') : editedDesire;
+    const desireValue = (editedDesire !== originalDesire)
+        ? markEditedSpan(originalDesire, editedDesire)
+        : editedDesire;
+    
+    const editedIntention = addPrefix('intention', intentionInput.value || '');
+    const originalIntention = gt.intention ? addPrefix('intention', gt.intention || '') : editedIntention;
+    const intentionValue = (editedIntention !== originalIntention)
+        ? markEditedSpan(originalIntention, editedIntention)
+        : editedIntention;
+    
+    const bdiEditSpans =
+        countEditSpans(beliefValue) +
+        countEditSpans(desireValue) +
+        countEditSpans(intentionValue);
+    
+    const totalEditSpans = utteranceEditSpans + bdiEditSpans;
+    
+    // Display edit statistics
+    document.getElementById('confirm-edited-utterances').textContent = editedUtterancesCount;
+    document.getElementById('confirm-utterance-edits').textContent = utteranceEditSpans;
+    document.getElementById('confirm-bdi-edits').textContent = bdiEditSpans;
+    document.getElementById('confirm-total-edits').textContent = totalEditSpans;
+    
     modal.classList.add('show');
 }
 
@@ -1523,18 +1677,76 @@ function hideConfirmModal() {
 async function performSave() {
     hideConfirmModal();
     
+    // Build BDI with edit markers relative to ground truth (pre-event) if available
+    let beliefValue = '';
+    let desireValue = '';
+    let intentionValue = '';
+    
+    const gt = currentDialogue.ground_truth || {};
+    
+    // Belief
+    const editedBelief = addPrefix('belief', beliefInput.value || '');
+    const originalBelief = gt.belief ? addPrefix('belief', gt.belief || '') : editedBelief;
+    beliefValue = (editedBelief !== originalBelief)
+        ? markEditedSpan(originalBelief, editedBelief)
+        : editedBelief;
+    
+    // Desire
+    const editedDesire = addPrefix('desire', desireInput.value || '');
+    const originalDesire = gt.desire ? addPrefix('desire', gt.desire || '') : editedDesire;
+    desireValue = (editedDesire !== originalDesire)
+        ? markEditedSpan(originalDesire, editedDesire)
+        : editedDesire;
+    
+    // Intention
+    const editedIntention = addPrefix('intention', intentionInput.value || '');
+    const originalIntention = gt.intention ? addPrefix('intention', gt.intention || '') : editedIntention;
+    intentionValue = (editedIntention !== originalIntention)
+        ? markEditedSpan(originalIntention, editedIntention)
+        : editedIntention;
+    
+    // Compute edit statistics
+    const editedUtterancesCount = Object.keys(modifiedUtterances).length;
+    const utteranceEditSpans = Object.values(modifiedUtterances).reduce(
+        (sum, info) => sum + countEditSpans(info.marked),
+        0
+    );
+    const bdiEditSpans =
+        countEditSpans(beliefValue) +
+        countEditSpans(desireValue) +
+        countEditSpans(intentionValue);
+    const totalEditSpans = utteranceEditSpans + bdiEditSpans;
+    
     const annotation = {
         entry_id: currentDialogue.entry_id,
         username: currentUsername,
         turns_viewed: currentTurnIndex,
         total_turns: currentDialogue.dialogue_history.length,
-        ready_to_annotate_turn: readyToAnnotateTurn,
         min_context_turn: minContextTurnIndex,
-        belief: addPrefix('belief', beliefInput.value),
-        desire: addPrefix('desire', desireInput.value),
-        intention: addPrefix('intention', intentionInput.value),
+        belief: beliefValue,
+        desire: desireValue,
+        intention: intentionValue,
         cognitive_appraisals: selectedAppraisals,
-        modified_utterances: modifiedUtterances, // Save any edited utterances
+        // Include full dialogue snapshot using the FINAL (possibly edited) utterances
+        dialogue_snapshot: currentDialogue.dialogue_history.map((turn, idx) => {
+            const modInfo = modifiedUtterances[idx];
+            return {
+                speaker: turn.speaker,
+                // Use edited plain text if available; otherwise original
+                utterance: modInfo ? modInfo.plain : turn.utterance
+            };
+        }),
+        // Save edited utterances with marked spans
+        modified_utterances: Object.fromEntries(
+            Object.entries(modifiedUtterances).map(([k, v]) => [k, v.marked])
+        ),
+        // Edit statistics
+        edit_stats: {
+            edited_utterances: editedUtterancesCount,
+            utterance_edit_spans: utteranceEditSpans,
+            bdi_edit_spans: bdiEditSpans,
+            total_edit_spans: totalEditSpans
+        },
         timestamp: new Date().toISOString()
     };
     
@@ -1542,12 +1754,38 @@ async function performSave() {
         // Save to Firebase
         await saveAnnotationToStorage(currentDialogue.entry_id, annotation);
         
-        showStatus('Annotation saved successfully!', 'success');
-        
         // Update annotation status and progress bar
         annotationStatus[currentDialogue.entry_id] = true;
-        const annotatedCount = Object.values(annotationStatus).filter(v => v).length;
-        updateProgressBar(annotatedCount, allDialogues.length);
+        
+        // Recompute annotated count over assigned dialogues only
+        let annotatedCount = 0;
+        const relevantIds = assignedDialogues.length > 0
+            ? assignedDialogues
+            : allDialogues.map(d => d.entry_id);
+        
+        for (const id of relevantIds) {
+            if (annotationStatus[id]) annotatedCount++;
+        }
+        const totalToAnnotate = relevantIds.length;
+        
+        updateProgressBar(annotatedCount, totalToAnnotate);
+        
+        // Build and show edit summary
+        const bdiEdited = bdiEditSpans > 0;
+        const appraisalsCount = selectedAppraisals.length;
+        
+        const summaryHtml = [
+            `<strong>✅ Annotation saved for ${currentDialogue.entry_id}</strong>`,
+            `<span>• Edited utterances: <strong>${editedUtterancesCount}</strong></span>`,
+            `<span>• Utterance edit spans: <strong>${utteranceEditSpans}</strong></span>`,
+            `<span>• BDI edit spans: <strong>${bdiEditSpans}</strong></span>`,
+            `<span>• Total edit spans (edits): <strong>${totalEditSpans}</strong></span>`,
+            `<span>• BDI revised: <strong>${bdiEdited ? 'Yes' : 'No'}</strong></span>`,
+            `<span>• Appraisals selected: <strong>${appraisalsCount}</strong></span>`
+        ].join('<br>');
+        
+        // Longer duration so user can read the statistics
+        showStatus(summaryHtml, 'success', 6000);
         
         // Update current dialogue info display
         updateDialogueInfo();
@@ -1562,7 +1800,7 @@ async function performSave() {
             setTimeout(async () => {
                 dialogueSelect.value = nextUnannotated;
                 await handleDialogueChange();
-                showStatus(`Loaded next dialogue: ${allDialogues[nextUnannotated].entry_id}`, 'success');
+                console.log(`Loaded next dialogue: ${allDialogues[nextUnannotated].entry_id}`);
             }, 1500);
         } else {
             // All dialogues completed!
@@ -1590,8 +1828,12 @@ function showStatus(message, type = 'info', duration = 3000) {
     
     if (!popup || !messageEl || !iconEl) return;
     
-    // Set message
-    messageEl.textContent = message;
+    // Set message (support simple multi-line / HTML for internal messages)
+    if (typeof message === 'string' && (message.includes('<br') || message.includes('</'))) {
+        messageEl.innerHTML = message;
+    } else {
+        messageEl.textContent = message;
+    }
     
     // Set icon based on type
     const icons = {

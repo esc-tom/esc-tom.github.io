@@ -543,21 +543,21 @@ header h1 {
 
 .dialogue-turn.patient {
     background: #fef2f2;
-    border-left: 3px solid #fca5a5;
+    border-left: 4px solid #ef4444; /* strong red */
 }
 
 .dialogue-turn.patient:hover {
-    border-left-color: #f87171;
+    border-left-color: #b91c1c;
     background: #fee2e2;
 }
 
 .dialogue-turn.therapist {
     background: #f0fdf4;
-    border-left: 3px solid #86efac;
+    border-left: 4px solid #22c55e; /* strong green */
 }
 
 .dialogue-turn.therapist:hover {
-    border-left-color: #4ade80;
+    border-left-color: #15803d;
     background: #dcfce7;
 }
 
@@ -860,15 +860,16 @@ header h1 {
 /* Dialogue info box - Minimalistic */
 /* Context section for situation and thought */
 .context-section {
-    margin-bottom: 20px;
-    padding: 16px;
-    background: #fff8e1;
-    border: 2px solid #ffc107;
-    border-radius: var(--radius-md);
+    margin: 20px 0;
+    padding: 18px 20px;
+    background: linear-gradient(135deg, #eef2ff 0%, #e0f2fe 100%);
+    border: 2px solid #4f46e5;
+    border-radius: var(--radius-lg);
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
 }
 
 .context-box {
-    margin-bottom: 12px;
+    margin-bottom: 14px;
 }
 
 .context-box:last-child {
@@ -876,20 +877,20 @@ header h1 {
 }
 
 .context-box h4 {
-    margin: 0 0 8px 0;
-    font-size: 13px;
-    font-weight: 700;
-    color: #f57c00;
+    margin: 0 0 6px 0;
+    font-size: 14px;
+    font-weight: 800;
+    color: #1d4ed8;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.6px;
 }
 
 .context-text {
     margin: 0;
-    font-size: 14px;
+    font-size: 15px;
     line-height: 1.6;
-    color: #424242;
-    font-style: italic;
+    color: #111827;
+    font-weight: 500;
 }
 
 .dialogue-info-box {
@@ -1651,6 +1652,24 @@ header h1 {
 
 .login-error.hidden {
     display: none;
+}
+
+/* Edited utterance highlighting */
+.utterance-edit-span {
+    background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+    border: 1px solid #818cf8;
+    color: #312e81;
+    border-radius: 4px;
+    padding: 1px 4px;
+    box-shadow: 0 1px 2px rgba(99, 102, 241, 0.25);
+    font-weight: 600;
+}
+
+.utterance-modified-indicator {
+    margin-left: 6px;
+    font-size: 11px;
+    font-style: italic;
+    color: #4338ca;
 }
 
 /* User Badge */
