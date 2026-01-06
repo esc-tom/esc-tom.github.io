@@ -1,8 +1,33 @@
 /**
  * Firebase Storage Client for Annotation Tool
  * 
- * Simple cloud storage using Firebase Firestore and Authentication
- * Much simpler than GitHub API - no tokens needed!
+ * COLLECTION STRUCTURE:
+ * ====================
+ * Each annotator has their own annotations collection:
+ * 
+ * users/{uid}
+ *   ├── username: string
+ *   ├── email: string
+ *   ├── assignedDialogues: string[]
+ *   └── annotations/{dialogueId}  <-- Per-user annotations subcollection
+ *       ├── userId: string
+ *       ├── username: string
+ *       ├── dialogueId: string
+ *       ├── belief: string (with edit markers)
+ *       ├── desire: string (with edit markers)
+ *       ├── intention: string (with edit markers)
+ *       ├── cognitive_appraisals: array
+ *       ├── modified_utterances: object
+ *       ├── dialogue_snapshot: array
+ *       ├── edit_stats: object
+ *       ├── min_context_turn: number
+ *       └── timestamp: timestamp
+ * 
+ * This structure ensures:
+ * - Each annotator's annotations are isolated in their own subcollection
+ * - Easy to query all annotations for a specific user
+ * - Easy to resume incomplete annotation tasks
+ * - Clear data organization per annotator
  */
 
 class FirebaseStorage {
