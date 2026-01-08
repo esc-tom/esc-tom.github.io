@@ -121,16 +121,69 @@ async function handleProlificSession() {
         }
         
         // Check if this participant already registered
-        const isRegistered = await firebaseStorage.isProlificParticipantRegistered(prolificParams.participantId);
+        const prolificUser = await firebaseStorage.getProlificUserByParticipantId(prolificParams.participantId);
         
-        if (isRegistered) {
-            logProlificInfo('Participant already registered, preventing duplicate');
+        if (prolificUser) {
+            logProlificInfo('Participant already registered, checking completion status');
             
-            // Show error message instead of allowing duplicate participation
+            // Check if they've completed all annotations
+            const isCompleted = await firebaseStorage.hasCompletedAllAnnotations(prolificUser.uid);
+            
+            if (isCompleted) {
+                // Already completed - show completion message
+                logProlificInfo('Participant has already completed all annotations');
+                hideLoginModal();
+                showProlificCompletionMessage();
+                return;
+            }
+            
+            // Not completed - auto-login and resume
+            logProlificInfo('Participant not completed, auto-logging in to resume session');
+            
+            const username = prolificUser.username;
+            const password = prolificUser.prolific?.password;
+            
+            if (!password) {
+                console.error('Password not found for Prolific user');
+                showProlificError('Unable to resume session. Please contact the researcher.');
+                return;
+            }
+            
+            // Auto-login with stored password
+            const loginResult = await firebaseStorage.loginUser(username, password);
+            
+            if (!loginResult.success) {
+                console.error('Auto-login failed:', loginResult.message);
+                showProlificError('Unable to resume session. Please contact the researcher.');
+                return;
+            }
+            
+            // Update session ID if it's different (new Prolific session)
+            if (prolificParams.sessionId && prolificUser.prolific?.sessionId !== prolificParams.sessionId) {
+                try {
+                    await firebaseStorage.db.collection('users').doc(prolificUser.uid).update({
+                        'prolific.sessionId': prolificParams.sessionId,
+                        'prolific.lastResumedAt': firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    logProlificInfo('Updated session ID for resumed participant');
+                } catch (error) {
+                    console.warn('Failed to update session ID:', error);
+                }
+            }
+            
+            // Get assigned dialogues
+            assignedDialogues = prolificUser.assignedDialogues || [];
+            currentUsername = username;
+            
+            // Hide login modal and resume annotation
             hideLoginModal();
-            showProlificDuplicateError();
+            showProlificResumeMessage();
+            await initializeApp();
             return;
         }
+        
+        // Not registered - proceed with registration
+        logProlificInfo('New Prolific participant, auto-registering', { participantId: prolificParams.participantId });
         
         // Auto-register Prolific participant
         const username = `prolific_${prolificParams.participantId}`;
@@ -2302,6 +2355,43 @@ function showProlificWelcome() {
         </div>
     `;
     showStatus(message, 'info', 10000); // Show for 10 seconds
+}
+
+// Show Prolific resume message
+function showProlificResumeMessage() {
+    const message = `
+        <div style="padding: 20px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; margin: 20px;">
+            <h3 style="margin-top: 0; color: #856404;">🔄 Welcome Back!</h3>
+            <p>Your session has been resumed. You can continue annotating your remaining dialogues.</p>
+            <p><strong>Your progress has been saved.</strong> Please continue where you left off.</p>
+        </div>
+    `;
+    showStatus(message, 'info', 8000); // Show for 8 seconds
+}
+
+// Show Prolific completion message (already completed)
+function showProlificCompletionMessage() {
+    const completionCode = PROLIFIC_CONFIG.completionCode;
+    const message = `
+        <div style="padding: 30px; background: #d4edda; border: 3px solid #28a745; border-radius: 12px; text-align: center; max-width: 600px; margin: 50px auto;">
+            <h2 style="color: #155724; margin-top: 0;">✅ Study Already Completed</h2>
+            <p style="font-size: 16px;">You have already completed all assigned dialogues for this study.</p>
+            ${completionCode ? `
+                <div style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+                    <p style="margin: 0; font-weight: bold; color: #155724;">Completion Code:</p>
+                    <p style="margin: 10px 0 0 0; font-size: 24px; font-weight: bold; color: #28a745; letter-spacing: 2px;">${completionCode}</p>
+                </div>
+            ` : ''}
+            <p style="margin-top: 20px; color: #666;">
+                Please return to Prolific and use the completion code above if needed.
+            </p>
+            <button onclick="window.close()" style="margin-top: 20px; padding: 12px 24px; background: #28a745; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer;">
+                Close Window
+            </button>
+        </div>
+    `;
+    
+    document.body.innerHTML = message;
 }
 
 // Show Prolific completion screen

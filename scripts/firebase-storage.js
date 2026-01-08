@@ -158,6 +158,7 @@ class FirebaseStorage {
                     participantId: prolificData.participantId,
                     studyId: prolificData.studyId,
                     sessionId: prolificData.sessionId,
+                    password: password, // Store password for auto-login on return
                     registeredAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
                 console.log('👥 Prolific participant registered:', prolificData.participantId);
@@ -815,6 +816,77 @@ class FirebaseStorage {
             return !snapshot.empty;
         } catch (error) {
             console.error('Error checking Prolific participant:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get Prolific user data by participant ID
+     * @param {string} participantId - Prolific participant ID
+     * @returns {Promise<Object|null>} - User document data or null
+     */
+    async getProlificUserByParticipantId(participantId) {
+        try {
+            const snapshot = await this.db.collection('users')
+                .where('prolific.participantId', '==', participantId)
+                .limit(1)
+                .get();
+            
+            if (snapshot.empty) {
+                return null;
+            }
+            
+            const doc = snapshot.docs[0];
+            return {
+                uid: doc.id,
+                ...doc.data()
+            };
+        } catch (error) {
+            console.error('Error getting Prolific user:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Check if Prolific user has completed all assigned annotations
+     * @param {string} uid - User UID
+     * @returns {Promise<boolean>}
+     */
+    async hasCompletedAllAnnotations(uid) {
+        try {
+            // Get user document
+            const userDoc = await this.db.collection('users').doc(uid).get();
+            if (!userDoc.exists) {
+                return false;
+            }
+            
+            const userData = userDoc.data();
+            const assignedDialogues = userData.assignedDialogues || [];
+            
+            if (assignedDialogues.length === 0) {
+                return false; // No dialogues assigned
+            }
+            
+            // Get all annotations for this user
+            const annotationsSnapshot = await this.db.collection('users')
+                .doc(uid)
+                .collection('annotations')
+                .get();
+            
+            const annotatedIds = new Set();
+            annotationsSnapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.dialogueId) {
+                    annotatedIds.add(data.dialogueId);
+                }
+            });
+            
+            // Check if all assigned dialogues are annotated
+            const allCompleted = assignedDialogues.every(id => annotatedIds.has(id));
+            
+            return allCompleted;
+        } catch (error) {
+            console.error('Error checking completion status:', error);
             return false;
         }
     }
