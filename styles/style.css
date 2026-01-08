@@ -1982,6 +1982,23 @@ header h1 {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+/* Disabled button state for feedback modal */
+#feedback-modal .btn.disabled,
+#feedback-modal .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #ccc;
+    color: #666;
+    pointer-events: none;
+}
+
+#feedback-modal .btn.disabled:hover,
+#feedback-modal .btn:disabled:hover {
+    background: #ccc;
+    color: #666;
+    transform: none;
+}
+
 @media (max-width: 1200px) {
     .main-content {
         grid-template-columns: 1fr;

@@ -2043,12 +2043,15 @@ async function performSave() {
                 setTimeout(() => {
                     showFeedbackModal();
                 }, 2000); // Show after 2 seconds
+            } else {
+                // Feedback already submitted, handle Prolific completion
+                if (isProlific) {
+                    await handleProlificCompletion();
+                }
             }
             
-            // Handle Prolific completion
-            if (isProlific) {
-                await handleProlificCompletion();
-            }
+            // Note: For Prolific users, handleProlificCompletion() will be called
+            // AFTER feedback is submitted (in handleFeedbackSubmit)
         }
     } catch (error) {
         console.error('Error saving annotation:', error);
@@ -2704,6 +2707,13 @@ function resetFeedbackForm() {
         star.classList.remove('selected');
     });
     
+    // Reset submit button state
+    const submitBtn = document.getElementById('feedback-submit');
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.classList.add('disabled');
+    }
+    
     // Hide error
     const errorDiv = document.getElementById('feedback-error');
     if (errorDiv) {
@@ -2712,13 +2722,35 @@ function resetFeedbackForm() {
 }
 
 function setupFeedbackListeners() {
+    const submitBtn = document.getElementById('feedback-submit');
+    const commentsTextarea = document.getElementById('feedback-comments');
+    const errorDiv = document.getElementById('feedback-error');
+    
+    // Function to update submit button state based on validation
+    function updateSubmitButtonState() {
+        const comments = commentsTextarea.value.trim();
+        const isValid = feedbackRating > 0 && comments.length > 0;
+        
+        if (isValid) {
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('disabled');
+            errorDiv.classList.add('hidden');
+        } else {
+            submitBtn.disabled = true;
+            submitBtn.classList.add('disabled');
+        }
+    }
+    
     // Star rating
     const stars = document.querySelectorAll('#feedback-star-rating .star');
     stars.forEach(star => {
-        star.addEventListener('click', function() {
+        star.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
             feedbackRating = parseInt(this.getAttribute('data-rating'));
             document.getElementById('feedback-rating').value = feedbackRating;
-            
+
             // Update visual state
             stars.forEach((s, idx) => {
                 if (idx < feedbackRating) {
@@ -2729,6 +2761,9 @@ function setupFeedbackListeners() {
                     s.classList.remove('selected');
                 }
             });
+            
+            // Update submit button state
+            updateSubmitButtonState();
         });
         
         // Hover effect
@@ -2756,30 +2791,72 @@ function setupFeedbackListeners() {
         });
     });
     
-    // Submit button
-    const submitBtn = document.getElementById('feedback-submit');
-    submitBtn.addEventListener('click', async function() {
-        await handleFeedbackSubmit();
+    // Comments textarea - update submit button state on input
+    commentsTextarea.addEventListener('input', function() {
+        updateSubmitButtonState();
+    });
+    
+    // Prevent Enter key from submitting (user must click button)
+    commentsTextarea.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.ctrlKey) {
+            // Allow Ctrl+Enter to submit
+            e.preventDefault();
+            if (!submitBtn.disabled) {
+                handleFeedbackSubmit();
+            }
+        } else if (e.key === 'Enter') {
+            // Allow Enter for new lines in textarea
+            // Don't prevent default
+        }
+    });
+    
+    // Submit button - only enabled when both fields are filled
+    submitBtn.disabled = true;
+    submitBtn.classList.add('disabled');
+    submitBtn.addEventListener('click', async function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (!submitBtn.disabled) {
+            await handleFeedbackSubmit();
+        }
     });
     
     // Skip button
     const skipBtn = document.getElementById('feedback-skip');
-    skipBtn.addEventListener('click', function() {
+    skipBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
         hideFeedbackModal();
+        
+        // If Prolific and feedback was skipped, still handle completion
+        if (isProlific) {
+            handleProlificCompletion();
+        }
     });
+    
+    // Initial state
+    updateSubmitButtonState();
 }
 
 async function handleFeedbackSubmit() {
     const comments = document.getElementById('feedback-comments').value.trim();
     const errorDiv = document.getElementById('feedback-error');
     
-    // Validate - at least rating or comments required
-    if (feedbackRating === 0 && !comments) {
-        errorDiv.textContent = 'Please provide a rating or comments';
+    // Validate - BOTH rating AND comments are required
+    if (feedbackRating === 0) {
+        errorDiv.textContent = 'Please provide a star rating (1-5 stars)';
         errorDiv.classList.remove('hidden');
         return;
     }
     
+    if (!comments || comments.length === 0) {
+        errorDiv.textContent = 'Please provide feedback comments in the text box';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+    
+    // Both are provided, proceed with submission
     try {
         // Save feedback to Firebase
         const success = await firebaseStorage.saveFeedback({
@@ -2790,6 +2867,11 @@ async function handleFeedbackSubmit() {
         if (success) {
             hideFeedbackModal();
             showStatus('Thank you for your feedback! 🙏', 'success', 4000);
+            
+            // Handle Prolific completion after feedback is submitted
+            if (isProlific) {
+                await handleProlificCompletion();
+            }
         } else {
             errorDiv.textContent = 'Failed to save feedback. Please try again.';
             errorDiv.classList.remove('hidden');
