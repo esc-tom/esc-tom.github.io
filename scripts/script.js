@@ -152,19 +152,18 @@ async function handleProlificSession() {
                 if (recreateResult.success) {
                     logProlificInfo('Successfully recreated Prolific profile');
                     
-                    // If no dialogues were recovered, sample new ones
+                    // Use the recovered assigned dialogues - NEVER sample new ones when resuming
+                    // If no dialogues were recovered, this is an error case (shouldn't happen for existing users)
                     if (recreateResult.assignedDialogues.length === 0) {
-                        logProlificInfo('No existing annotations found, sampling new dialogues');
-                        const sampledDialogues = await sampleDialogues(DIALOGUES_PER_USER);
-                        
-                        // Update the profile with new dialogues
-                        await firebaseStorage.db.collection('users').doc(recreateResult.uid).update({
-                            assignedDialogues: sampledDialogues
-                        });
-                        
-                        assignedDialogues = sampledDialogues;
+                        logProlificInfo('⚠️ WARNING: No assigned dialogues recovered - this should not happen for existing users');
+                        console.error('Profile recreation returned empty assigned dialogues - user may have lost their assignment');
+                        // Don't sample new dialogues - this would change their assignment
+                        // Instead, show error or try to recover from prolific metadata
+                        showProlificError('Unable to recover your assigned dialogues. Please contact the researcher.');
+                        return;
                     } else {
                         assignedDialogues = recreateResult.assignedDialogues;
+                        logProlificInfo(`Using recovered assigned dialogues: ${assignedDialogues.length} dialogues`);
                     }
                     
                     currentUsername = recreateResult.username;
@@ -264,16 +263,24 @@ async function handleProlificSession() {
                     if (recreateResult.success) {
                         logProlificInfo('Successfully recreated profile after login failure');
                         
-                        // Update assigned dialogues if needed
+                        // Use the recovered assigned dialogues - NEVER sample new ones when resuming
                         if (recreateResult.assignedDialogues.length === 0) {
-                            const sampledDialogues = await sampleDialogues(DIALOGUES_PER_USER);
-                            await firebaseStorage.db.collection('users').doc(recreateResult.uid).update({
-                                assignedDialogues: sampledDialogues,
-                                'prolific.password': password
-                            });
-                            assignedDialogues = sampledDialogues;
+                            logProlificInfo('⚠️ WARNING: No assigned dialogues recovered after login failure');
+                            console.error('Profile recreation returned empty assigned dialogues');
+                            showProlificError('Unable to recover your assigned dialogues. Please contact the researcher.');
+                            return;
                         } else {
                             assignedDialogues = recreateResult.assignedDialogues;
+                            logProlificInfo(`Using recovered assigned dialogues: ${assignedDialogues.length} dialogues`);
+                            
+                            // Update password in Firestore
+                            try {
+                                await firebaseStorage.db.collection('users').doc(recreateResult.uid).update({
+                                    'prolific.password': password
+                                });
+                            } catch (err) {
+                                console.warn('Failed to update password:', err);
+                            }
                         }
                         
                         currentUsername = recreateResult.username;
@@ -300,8 +307,14 @@ async function handleProlificSession() {
                     }
                 }
                 
-                // Get assigned dialogues
+                // Get assigned dialogues - ALWAYS use what's stored, NEVER modify during resume
+                // The original 10 dialogues assigned at registration must be preserved
                 assignedDialogues = prolificUser.assignedDialogues || [];
+                if (assignedDialogues.length === 0) {
+                    console.warn('⚠️ WARNING: User profile has no assigned dialogues - this should not happen');
+                } else {
+                    logProlificInfo(`Resuming with ${assignedDialogues.length} originally assigned dialogues`);
+                }
                 currentUsername = username;
                 
                 // Hide login modal and resume annotation
@@ -351,15 +364,31 @@ async function handleProlificSession() {
             if (recreateResult.success) {
                 logProlificInfo('Successfully recreated profile after registration conflict');
                 
-                // Update with sampled dialogues if none were recovered
-                if (recreateResult.assignedDialogues.length === 0) {
+                // Prioritize recovered assigned dialogues over newly sampled ones
+                // This ensures we preserve the original assignment if it exists
+                if (recreateResult.assignedDialogues.length > 0) {
+                    // Use recovered dialogues (original assignment)
+                    assignedDialogues = recreateResult.assignedDialogues;
+                    logProlificInfo(`Using recovered assigned dialogues: ${assignedDialogues.length} dialogues`);
+                    
+                    // Update password in Firestore
+                    try {
+                        await firebaseStorage.db.collection('users').doc(recreateResult.uid).update({
+                            'prolific.password': password
+                        });
+                    } catch (err) {
+                        console.warn('Failed to update password:', err);
+                    }
+                } else {
+                    // Only use newly sampled dialogues if this is truly a new profile
+                    // (no existing annotations or original assignment found)
+                    logProlificInfo('No existing assignment found, using newly sampled dialogues');
                     await firebaseStorage.db.collection('users').doc(recreateResult.uid).update({
                         assignedDialogues: sampledDialogues,
-                        'prolific.password': password
+                        'prolific.password': password,
+                        'prolific.originalAssignedDialogues': sampledDialogues // Store as original
                     });
                     assignedDialogues = sampledDialogues;
-                } else {
-                    assignedDialogues = recreateResult.assignedDialogues;
                 }
                 
                 currentUsername = recreateResult.username;

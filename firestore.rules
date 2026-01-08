@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is accessing their own data
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
+    match /users/{userId} {
+      // Allow authenticated users to read user profiles
+      // This is needed for:
+      // - Users reading their own profile
+      // - Prolific participant lookups (query by participantId)
+      // - Username availability checks (query by username)
+      // Note: While this allows reading any user profile, write is restricted to own profile
+      allow read: if isAuthenticated();
+      
+      // Allow users to create their own profile (during registration)
+      // Also allows ensureUserDocumentExists to create missing profiles
+      // Note: set() with merge uses update permission, but we allow create for safety
+      allow create: if isAuthenticated() 
+                    && request.auth.uid == userId
+                    && request.resource.data.username is string
+                    && request.resource.data.email is string;
+      
+      // Allow users to update their own profile
+      // Allows updates for: feedback, prolific data, lastActiveAt, assignedDialogues, etc.
+      allow update: if isOwner(userId);
+      
+      // Allow users to write their own profile (for set operations with merge)
+      // Needed for: registration, profile recreation, ensureUserDocumentExists
+      allow write: if isOwner(userId);
+      
+      // Allow queries on users collection
+      // Needed for: getAllUsers(), getProlificUserByParticipantId(), getUsernameStatus()
+      // Results are still filtered by read permissions
+      allow list: if isAuthenticated();
+      
+      // ============================================
+      // ANNOTATIONS SUBCOLLECTION
+      // ============================================
+      match /annotations/{annotationId} {
+        // Allow users to read their own annotations
+        allow read: if isOwner(userId);
+        
+        // Allow users to create/update their own annotations
+        allow create: if isOwner(userId)
+                      && request.resource.data.keys().hasAll(['userId', 'username', 'dialogueId'])
+                      && request.resource.data.userId == userId
+                      && request.resource.data.username is string
+                      && request.resource.data.dialogueId is string;
+        
+        allow update: if isOwner(userId)
+                      && request.resource.data.userId == userId;
+        
+        // Allow write (for set with merge operations)
+        allow write: if isOwner(userId)
+                     && request.resource.data.userId == userId;
+        
+        // Allow delete (for cleanup operations)
+        allow delete: if isOwner(userId);
+      }
+    }
+    
+    // ============================================
+    // LEGACY ANNOTATIONS COLLECTION (for backward compatibility)
+    // ============================================
+    match /annotations/{annotationId} {
+      // Allow authenticated users to read legacy annotations
+      allow read: if isAuthenticated();
+      
+      // Allow users to write/delete their own legacy annotations
+      // Legacy format: {userId}_{dialogueId}
+      allow write: if isAuthenticated()
+                   && (annotationId.matches('.*_.*') 
+                       ? annotationId.split('_')[0] == request.auth.uid
+                       : false);
+      
+      allow delete: if isAuthenticated()
+                    && (annotationId.matches('.*_.*') 
+                        ? annotationId.split('_')[0] == request.auth.uid
+                        : false);
+    }
+  }
+}

@@ -159,6 +159,7 @@ class FirebaseStorage {
                     studyId: prolificData.studyId,
                     sessionId: prolificData.sessionId,
                     password: password, // Store password for auto-login on return
+                    originalAssignedDialogues: assignedDialogues, // Store original assignment as backup
                     registeredAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
                 console.log('👥 Prolific participant registered:', prolificData.participantId);
@@ -986,9 +987,54 @@ class FirebaseStorage {
             const authUser = userCredential.user;
             this.currentUser = authUser;
             
-            // Check if there are any existing annotations (to recover assigned dialogues)
+            // Try to recover original assigned dialogues from prolific metadata first
+            // Priority: 1) originalAssignedDialogues in metadata, 2) assignedDialogues in doc, 3) reconstruct from annotations
+            let originalAssignedDialogues = [];
+            
+            // First, check if the current user document still exists (might be partially corrupted)
+            try {
+                const currentUserDoc = await this.db.collection('users').doc(authUser.uid).get();
+                if (currentUserDoc.exists) {
+                    const data = currentUserDoc.data();
+                    if (data.prolific?.originalAssignedDialogues && data.prolific.originalAssignedDialogues.length > 0) {
+                        originalAssignedDialogues = data.prolific.originalAssignedDialogues;
+                        console.log(`📋 Found original assigned dialogues in current doc metadata: ${originalAssignedDialogues.length}`);
+                    } else if (data.assignedDialogues && data.assignedDialogues.length > 0) {
+                        originalAssignedDialogues = data.assignedDialogues;
+                        console.log(`📋 Found assigned dialogues in current doc: ${originalAssignedDialogues.length}`);
+                    }
+                }
+            } catch (error) {
+                console.warn('Could not read current user doc:', error);
+            }
+            
+            // If not found in current doc, check other documents with same participantId
+            // (in case profile was deleted but another doc exists)
+            if (originalAssignedDialogues.length === 0) {
+                try {
+                    const prolificQuery = await this.db.collection('users')
+                        .where('prolific.participantId', '==', prolificParams.participantId)
+                        .limit(1)
+                        .get();
+                    
+                    if (!prolificQuery.empty) {
+                        const existingDoc = prolificQuery.docs[0].data();
+                        if (existingDoc.prolific?.originalAssignedDialogues && existingDoc.prolific.originalAssignedDialogues.length > 0) {
+                            originalAssignedDialogues = existingDoc.prolific.originalAssignedDialogues;
+                            console.log(`📋 Found original assigned dialogues in another doc metadata: ${originalAssignedDialogues.length}`);
+                        } else if (existingDoc.assignedDialogues && existingDoc.assignedDialogues.length > 0) {
+                            originalAssignedDialogues = existingDoc.assignedDialogues;
+                            console.log(`📋 Found assigned dialogues in another doc: ${originalAssignedDialogues.length}`);
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Could not query for original dialogues:', error);
+                }
+            }
+            
+            // Check if there are any existing annotations (to recover assigned dialogues as fallback)
             let existingAnnotations = [];
-            let recoveredDialogues = [];
+            let recoveredDialoguesFromAnnotations = [];
             
             try {
                 const annotationsSnapshot = await this.db.collection('users')
@@ -1000,21 +1046,26 @@ class FirebaseStorage {
                     const data = doc.data();
                     if (data.dialogueId) {
                         existingAnnotations.push(data.dialogueId);
-                        recoveredDialogues.push(data.dialogueId);
+                        recoveredDialoguesFromAnnotations.push(data.dialogueId);
                     }
                 });
                 
-                console.log(`📋 Recovered ${recoveredDialogues.length} dialogues from existing annotations`);
+                console.log(`📋 Found ${recoveredDialoguesFromAnnotations.length} dialogues from existing annotations`);
             } catch (error) {
                 console.warn('Could not recover annotations:', error);
             }
             
-            // If no dialogues recovered, sample new ones
-            let assignedDialogues = recoveredDialogues;
+            // Prioritize original assigned dialogues, fallback to annotations
+            // If we have original, use it; otherwise use annotations (which might be incomplete)
+            let assignedDialogues = originalAssignedDialogues.length > 0 
+                ? originalAssignedDialogues 
+                : recoveredDialoguesFromAnnotations;
+            
             if (assignedDialogues.length === 0) {
-                // Need to sample new dialogues - but we need access to sampleDialogues function
-                // For now, return with empty array and let the caller handle it
-                console.warn('No existing annotations found, will need to assign new dialogues');
+                console.warn('⚠️ No assigned dialogues found - profile recreation will need new assignment');
+                // Return empty array - caller should handle this case (only for brand new profiles)
+            } else {
+                console.log(`✅ Using ${assignedDialogues.length} assigned dialogues (${originalAssignedDialogues.length > 0 ? 'original' : 'recovered from annotations'})`);
             }
             
             // Recreate the Firestore profile
@@ -1027,6 +1078,7 @@ class FirebaseStorage {
                     studyId: prolificParams.studyId,
                     sessionId: prolificParams.sessionId,
                     password: password, // Store password again
+                    originalAssignedDialogues: assignedDialogues, // Store as backup for future recovery
                     registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
                     profileRecreatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     recreated: true
