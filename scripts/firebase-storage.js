@@ -424,28 +424,64 @@ class FirebaseStorage {
      * @returns {Promise<boolean>}
      */
     async saveAnnotation(username, dialogueId, annotation) {
-        if (!this.currentUser) {
+        // Ensure database is initialized
+        if (!this.db) {
+            throw new Error('Firestore database not initialized. Please initialize Firebase first.');
+        }
+
+        if (!this.auth) {
+            throw new Error('Firebase Auth not initialized. Please initialize Firebase first.');
+        }
+
+        // Sync currentUser with auth.currentUser to ensure we have the latest state
+        if (this.auth.currentUser) {
+            this.currentUser = this.auth.currentUser;
+        }
+
+        // Check authentication - use both currentUser and auth.currentUser as fallback
+        const user = this.currentUser || this.auth.currentUser;
+        if (!user) {
             throw new Error('User not authenticated. Please login first.');
+        }
+
+        // Ensure we have a valid UID
+        if (!user.uid) {
+            throw new Error('Invalid user: missing UID. Please login again.');
         }
 
         try {
             // Use per-user annotations subcollection: users/{uid}/annotations/{dialogueId}
-            const userDocRef = this.db.collection('users').doc(this.currentUser.uid);
+            const userDocRef = this.db.collection('users').doc(user.uid);
             const annRef = userDocRef.collection('annotations').doc(dialogueId);
 
+            // Ensure currentUser is set for future operations
+            this.currentUser = user;
+
             await annRef.set({
-                userId: this.currentUser.uid,
+                userId: user.uid,
                 username: username,
                 dialogueId: dialogueId,
                 ...annotation,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true }); // merge: true allows updates
             
-            console.log(`Saved annotation in user collection: ${username}/${dialogueId}`);
+            console.log(`✅ Saved annotation in user collection: ${username}/${dialogueId}`);
             return true;
         } catch (error) {
-            console.error('Error saving annotation:', error);
-            throw error;
+            console.error('❌ Error saving annotation:', error);
+            
+            // Provide more specific error messages
+            if (error.code === 'permission-denied') {
+                throw new Error('Permission denied. Please check Firestore security rules.');
+            } else if (error.code === 'unavailable') {
+                throw new Error('Firestore is unavailable. Please check your internet connection.');
+            } else if (error.code === 'unauthenticated') {
+                throw new Error('Authentication expired. Please login again.');
+            } else if (error.message) {
+                throw new Error(`Failed to save annotation: ${error.message}`);
+            } else {
+                throw new Error(`Failed to save annotation: ${error.code || 'Unknown error'}`);
+            }
         }
     }
 

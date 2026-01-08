@@ -886,16 +886,31 @@ async function getAnnotationFromStorage(entryId) {
 }
 
 async function saveAnnotationToStorage(entryId, annotation) {
+    // Ensure Firebase is initialized
     if (!firebaseReady) {
-        await initFirebaseStorage();
+        const success = await initFirebaseStorage();
+        if (!success) {
+            throw new Error('Failed to initialize Firebase. Please refresh the page.');
+        }
+    }
+
+    // Verify user is logged in
+    if (!currentUsername) {
+        throw new Error('User not logged in. Please login first.');
+    }
+
+    // Verify firebaseStorage is available
+    if (!firebaseStorage) {
+        throw new Error('Firebase Storage not available. Please refresh the page.');
     }
 
     try {
         await firebaseStorage.saveAnnotation(currentUsername, entryId, annotation);
-        console.log(`Saved to Firebase: ${entryId}`);
+        console.log(`✅ Saved to Firebase: ${entryId}`);
         return true;
     } catch (error) {
-        console.error('Error saving annotation:', error);
+        console.error('❌ Error saving annotation to storage:', error);
+        // Re-throw with more context
         throw error;
     }
 }
@@ -1773,7 +1788,8 @@ async function performSave() {
         }
     } catch (error) {
         console.error('Error saving annotation:', error);
-        showStatus('❌ Error saving annotation', 'error');
+        const errorMessage = error.message || 'Unknown error occurred';
+        showStatus(`❌ Error saving annotation: ${errorMessage}`, 'error', 6000);
     }
 }
 
