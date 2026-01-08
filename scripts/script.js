@@ -195,61 +195,122 @@ async function handleProlificSession() {
         if (prolificUser) {
             logProlificInfo('Participant already registered, checking completion status');
             
-            // Check if they've completed all annotations
-            const isCompleted = await firebaseStorage.hasCompletedAllAnnotations(prolificUser.uid);
-            
-            if (isCompleted) {
-                // Already completed - show completion message
-                logProlificInfo('Participant has already completed all annotations');
-                hideLoginModal();
-                showProlificCompletionMessage();
-                return;
+            // Validate profile is complete
+            if (!prolificUser.username || !prolificUser.uid) {
+                logProlificInfo('Profile incomplete, will attempt recreation below');
+                prolificUser = null; // Will fall through to recreation logic below
             }
             
-            // Not completed - auto-login and resume
-            logProlificInfo('Participant not completed, auto-logging in to resume session');
+            // Only proceed if profile is complete
+            if (prolificUser && prolificUser.username && prolificUser.uid) {
+                // Profile is complete, proceed with normal flow
+                // Check if they've completed all annotations
+                const isCompleted = await firebaseStorage.hasCompletedAllAnnotations(prolificUser.uid);
             
-            const username = prolificUser.username;
-            const password = prolificUser.prolific?.password;
-            
-            if (!password) {
-                console.error('Password not found for Prolific user');
-                showProlificError('Unable to resume session. Please contact the researcher.');
-                return;
-            }
-            
-            // Auto-login with stored password
-            const loginResult = await firebaseStorage.loginUser(username, password);
-            
-            if (!loginResult.success) {
-                console.error('Auto-login failed:', loginResult.message);
-                showProlificError('Unable to resume session. Please contact the researcher.');
-                return;
-            }
-            
-            // Update session ID if it's different (new Prolific session)
-            if (prolificParams.sessionId && prolificUser.prolific?.sessionId !== prolificParams.sessionId) {
-                try {
-                    await firebaseStorage.db.collection('users').doc(prolificUser.uid).update({
-                        'prolific.sessionId': prolificParams.sessionId,
-                        'prolific.lastResumedAt': firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                    logProlificInfo('Updated session ID for resumed participant');
-                } catch (error) {
-                    console.warn('Failed to update session ID:', error);
+                if (isCompleted) {
+                    // Already completed - show completion message
+                    logProlificInfo('Participant has already completed all annotations');
+                    hideLoginModal();
+                    showProlificCompletionMessage();
+                    return;
                 }
-            }
             
-            // Get assigned dialogues
-            assignedDialogues = prolificUser.assignedDialogues || [];
-            currentUsername = username;
+                // Not completed - auto-login and resume
+                logProlificInfo('Participant not completed, auto-logging in to resume session');
             
-            // Hide login modal and resume annotation
-            hideLoginModal();
-            showProlificResumeMessage();
-            await initializeApp();
-            return;
-        }
+                const username = prolificUser.username;
+                let password = prolificUser.prolific?.password;
+                
+                // If password is missing, try to recover using deterministic password
+                if (!password) {
+                    logProlificInfo('Password not found in Firestore, attempting recovery with deterministic password');
+                    password = generateProlificPassword(prolificParams.participantId);
+                }
+                
+                // Try to login with stored or recovered password
+                let loginResult = await firebaseStorage.loginUser(username, password);
+                
+                // If login fails, try with deterministic password (in case stored password was wrong)
+                if (!loginResult.success && prolificUser.prolific?.password) {
+                    logProlificInfo('Stored password failed, trying deterministic password recovery');
+                    const recoveredPassword = generateProlificPassword(prolificParams.participantId);
+                    if (recoveredPassword !== password) {
+                        loginResult = await firebaseStorage.loginUser(username, recoveredPassword);
+                        if (loginResult.success) {
+                            password = recoveredPassword;
+                            // Update Firestore with recovered password
+                            try {
+                                await firebaseStorage.db.collection('users').doc(prolificUser.uid).update({
+                                    'prolific.password': recoveredPassword
+                                });
+                                logProlificInfo('Updated Firestore with recovered password');
+                            } catch (err) {
+                                console.warn('Failed to update password in Firestore:', err);
+                            }
+                        }
+                    }
+                }
+                
+                if (!loginResult.success) {
+                    console.error('Auto-login failed after recovery attempts:', loginResult.message);
+                    // Last resort: try to recreate the profile
+                    logProlificInfo('Login failed, attempting to recreate profile');
+                    const recreateResult = await firebaseStorage.recreateProlificProfile(
+                        prolificParams.participantId,
+                        password,
+                        prolificParams
+                    );
+                    
+                    if (recreateResult.success) {
+                        logProlificInfo('Successfully recreated profile after login failure');
+                        
+                        // Update assigned dialogues if needed
+                        if (recreateResult.assignedDialogues.length === 0) {
+                            const sampledDialogues = await sampleDialogues(DIALOGUES_PER_USER);
+                            await firebaseStorage.db.collection('users').doc(recreateResult.uid).update({
+                                assignedDialogues: sampledDialogues,
+                                'prolific.password': password
+                            });
+                            assignedDialogues = sampledDialogues;
+                        } else {
+                            assignedDialogues = recreateResult.assignedDialogues;
+                        }
+                        
+                        currentUsername = recreateResult.username;
+                        hideLoginModal();
+                        showProlificResumeMessage();
+                        await initializeApp();
+                        return;
+                    } else {
+                        showProlificError('Unable to resume session. Please contact the researcher.');
+                        return;
+                    }
+                }
+                
+                // Update session ID if it's different (new Prolific session)
+                if (prolificParams.sessionId && prolificUser.prolific?.sessionId !== prolificParams.sessionId) {
+                    try {
+                        await firebaseStorage.db.collection('users').doc(prolificUser.uid).update({
+                            'prolific.sessionId': prolificParams.sessionId,
+                            'prolific.lastResumedAt': firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        logProlificInfo('Updated session ID for resumed participant');
+                    } catch (error) {
+                        console.warn('Failed to update session ID:', error);
+                    }
+                }
+                
+                // Get assigned dialogues
+                assignedDialogues = prolificUser.assignedDialogues || [];
+                currentUsername = username;
+                
+                // Hide login modal and resume annotation
+                hideLoginModal();
+                showProlificResumeMessage();
+                await initializeApp();
+                return;
+            } // End of if (prolificUser && prolificUser.username && prolificUser.uid)
+        } // End of if (prolificUser) block
         
         // Not registered - proceed with registration
         logProlificInfo('New Prolific participant, auto-registering', { participantId: prolificParams.participantId });
