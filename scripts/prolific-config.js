@@ -62,14 +62,46 @@ function getProlificParams() {
     };
 }
 
-// Generate a secure random password for Prolific accounts
-function generateProlificPassword() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
-    let password = '';
-    for (let i = 0; i < 16; i++) {
-        password += chars.charAt(Math.floor(Math.random() * chars.length));
+// Generate a deterministic password for Prolific accounts
+// This allows profile recovery if Firestore is deleted but Auth account exists
+// Password is based on participantId + a secret salt for security
+function generateProlificPassword(participantId = null) {
+    // If participantId is provided, generate deterministic password
+    // Otherwise, generate random (for backward compatibility)
+    if (participantId) {
+        // Use a deterministic approach: hash participantId with a salt
+        // This allows recovery of the password if needed
+        const salt = 'PROLIFIC_ANNOTATION_TOOL_2024'; // Secret salt
+        const input = `${participantId}_${salt}`;
+        
+        // Simple hash function (for deterministic password)
+        let hash = 0;
+        for (let i = 0; i < input.length; i++) {
+            const char = input.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32-bit integer
+        }
+        
+        // Generate password from hash
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+        let password = '';
+        let hashValue = Math.abs(hash);
+        
+        for (let i = 0; i < 16; i++) {
+            password += chars.charAt(hashValue % chars.length);
+            hashValue = Math.floor(hashValue / chars.length) || (hashValue * 31); // Continue hashing
+        }
+        
+        return password;
+    } else {
+        // Random password (for backward compatibility or when participantId not available)
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+        let password = '';
+        for (let i = 0; i < 16; i++) {
+            password += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return password;
     }
-    return password;
 }
 
 // Get completion redirect URL

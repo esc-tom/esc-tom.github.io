@@ -121,7 +121,76 @@ async function handleProlificSession() {
         }
         
         // Check if this participant already registered
-        const prolificUser = await firebaseStorage.getProlificUserByParticipantId(prolificParams.participantId);
+        let prolificUser = await firebaseStorage.getProlificUserByParticipantId(prolificParams.participantId);
+        
+        // If Firestore profile is missing but Auth account exists, try to recreate it
+        if (!prolificUser) {
+            logProlificInfo('Firestore profile not found, checking if Auth account exists');
+            
+            const authCheck = await firebaseStorage.checkProlificAuthAccount(prolificParams.participantId);
+            
+            if (authCheck.exists) {
+                logProlificInfo('Auth account exists but Firestore profile missing, attempting to recreate');
+                
+                // Try to recover password from sessionStorage first
+                let password = sessionStorage.getItem('prolific_temp_password');
+                
+                // If not in sessionStorage, generate deterministic password
+                // This works because Prolific passwords are now deterministic based on participantId
+                if (!password) {
+                    password = generateProlificPassword(prolificParams.participantId);
+                    logProlificInfo('Using deterministic password for recovery', { participantId: prolificParams.participantId });
+                }
+                
+                // Try to recreate the profile
+                const recreateResult = await firebaseStorage.recreateProlificProfile(
+                    prolificParams.participantId,
+                    password,
+                    prolificParams
+                );
+                
+                if (recreateResult.success) {
+                    logProlificInfo('Successfully recreated Prolific profile');
+                    
+                    // If no dialogues were recovered, sample new ones
+                    if (recreateResult.assignedDialogues.length === 0) {
+                        logProlificInfo('No existing annotations found, sampling new dialogues');
+                        const sampledDialogues = await sampleDialogues(DIALOGUES_PER_USER);
+                        
+                        // Update the profile with new dialogues
+                        await firebaseStorage.db.collection('users').doc(recreateResult.uid).update({
+                            assignedDialogues: sampledDialogues
+                        });
+                        
+                        assignedDialogues = sampledDialogues;
+                    } else {
+                        assignedDialogues = recreateResult.assignedDialogues;
+                    }
+                    
+                    currentUsername = recreateResult.username;
+                    
+                    // Store password for future sessions
+                    await firebaseStorage.db.collection('users').doc(recreateResult.uid).update({
+                        'prolific.password': password
+                    });
+                    
+                    hideLoginModal();
+                    showProlificResumeMessage();
+                    await initializeApp();
+                    return;
+                } else {
+                    // Recreation failed - might be wrong password
+                    // The Auth account exists but we don't have the correct password
+                    // We can't proceed automatically - the password was lost when Firestore was deleted
+                    logProlificInfo('Profile recreation failed - password mismatch', { 
+                        reason: recreateResult.message 
+                    });
+                    
+                    // Try registration anyway - it will fail with "email already exists"
+                    // But we'll handle that case below
+                }
+            }
+        }
         
         if (prolificUser) {
             logProlificInfo('Participant already registered, checking completion status');
@@ -187,7 +256,8 @@ async function handleProlificSession() {
         
         // Auto-register Prolific participant
         const username = `prolific_${prolificParams.participantId}`;
-        const password = generateProlificPassword();
+        // Use deterministic password based on participantId for recovery capability
+        const password = generateProlificPassword(prolificParams.participantId);
         
         // Store password temporarily for this session
         sessionStorage.setItem('prolific_temp_password', password);
@@ -198,12 +268,63 @@ async function handleProlificSession() {
         const sampledDialogues = await sampleDialogues(DIALOGUES_PER_USER);
         
         // Register user with Prolific metadata
-        const result = await firebaseStorage.registerUser(
+        let result = await firebaseStorage.registerUser(
             username, 
             password, 
             sampledDialogues,
             prolificParams
         );
+        
+        // If registration fails because email already exists, try to recreate profile
+        if (!result.success && result.message && result.message.includes('already exists')) {
+            logProlificInfo('Auth account exists but Firestore profile missing, recreating profile');
+            
+            // The password we generated should work (it's deterministic)
+            // Try to recreate with this password
+            const recreateResult = await firebaseStorage.recreateProlificProfile(
+                prolificParams.participantId,
+                password, // This is the deterministic password we just generated
+                prolificParams
+            );
+            
+            if (recreateResult.success) {
+                logProlificInfo('Successfully recreated profile after registration conflict');
+                
+                // Update with sampled dialogues if none were recovered
+                if (recreateResult.assignedDialogues.length === 0) {
+                    await firebaseStorage.db.collection('users').doc(recreateResult.uid).update({
+                        assignedDialogues: sampledDialogues,
+                        'prolific.password': password
+                    });
+                    assignedDialogues = sampledDialogues;
+                } else {
+                    assignedDialogues = recreateResult.assignedDialogues;
+                }
+                
+                currentUsername = recreateResult.username;
+                
+                hideLoginModal();
+                showProlificResumeMessage();
+                await initializeApp();
+                return;
+            } else {
+                // Recreation failed - Auth account exists with different password
+                // We can't automatically recover without the original password
+                console.error('Profile recreation failed - Auth account password mismatch');
+                logProlificInfo('Cannot automatically recreate: Auth account exists but password is unknown');
+                
+                // Show helpful error message
+                showProlificError(
+                    'Your account exists but the profile was deleted. ' +
+                    'Automatic recovery failed because the password is unknown. ' +
+                    'Please contact the researcher to restore your account, or the system will attempt to create a new profile.'
+                );
+                
+                // Don't return - let it try to show the error, but we could also try to continue
+                // For now, return to prevent further errors
+                return;
+            }
+        }
         
         if (!result.success) {
             console.error('Prolific registration failed:', result.message);

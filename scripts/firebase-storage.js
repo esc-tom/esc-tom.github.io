@@ -944,6 +944,128 @@ class FirebaseStorage {
     }
 
     /**
+     * Check if Firebase Auth account exists for Prolific username
+     * @param {string} participantId - Prolific participant ID
+     * @returns {Promise<{exists: boolean, email: string|null}>}
+     */
+    async checkProlificAuthAccount(participantId) {
+        try {
+            const username = `prolific_${participantId}`;
+            const email = `${username}@annotation.local`;
+            
+            const methods = await this.auth.fetchSignInMethodsForEmail(email);
+            return {
+                exists: methods.length > 0,
+                email: email,
+                username: username
+            };
+        } catch (error) {
+            if (error.code === 'auth/user-not-found') {
+                return { exists: false, email: null, username: null };
+            }
+            console.error('Error checking Prolific Auth account:', error);
+            return { exists: false, email: null, username: null };
+        }
+    }
+
+    /**
+     * Recreate Prolific user Firestore profile from Auth account
+     * Attempts to recover assigned dialogues from existing annotations
+     * @param {string} participantId - Prolific participant ID
+     * @param {string} password - User's password (must be known)
+     * @param {Object} prolificParams - Prolific parameters
+     * @returns {Promise<Object>} - {success, uid, username, assignedDialogues, message}
+     */
+    async recreateProlificProfile(participantId, password, prolificParams) {
+        try {
+            const username = `prolific_${participantId}`;
+            const email = `${username}@annotation.local`;
+            
+            // First, try to sign in to get the Auth user
+            const userCredential = await this.auth.signInWithEmailAndPassword(email, password);
+            const authUser = userCredential.user;
+            this.currentUser = authUser;
+            
+            // Check if there are any existing annotations (to recover assigned dialogues)
+            let existingAnnotations = [];
+            let recoveredDialogues = [];
+            
+            try {
+                const annotationsSnapshot = await this.db.collection('users')
+                    .doc(authUser.uid)
+                    .collection('annotations')
+                    .get();
+                
+                annotationsSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    if (data.dialogueId) {
+                        existingAnnotations.push(data.dialogueId);
+                        recoveredDialogues.push(data.dialogueId);
+                    }
+                });
+                
+                console.log(`📋 Recovered ${recoveredDialogues.length} dialogues from existing annotations`);
+            } catch (error) {
+                console.warn('Could not recover annotations:', error);
+            }
+            
+            // If no dialogues recovered, sample new ones
+            let assignedDialogues = recoveredDialogues;
+            if (assignedDialogues.length === 0) {
+                // Need to sample new dialogues - but we need access to sampleDialogues function
+                // For now, return with empty array and let the caller handle it
+                console.warn('No existing annotations found, will need to assign new dialogues');
+            }
+            
+            // Recreate the Firestore profile
+            const userDoc = {
+                username: username,
+                email: email,
+                assignedDialogues: assignedDialogues,
+                prolific: {
+                    participantId: prolificParams.participantId,
+                    studyId: prolificParams.studyId,
+                    sessionId: prolificParams.sessionId,
+                    password: password, // Store password again
+                    registeredAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    profileRecreatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    recreated: true
+                },
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                lastActiveAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            
+            await this.db.collection('users').doc(authUser.uid).set(userDoc);
+            
+            console.log('🔄 Recreated Prolific user profile:', username);
+            return {
+                success: true,
+                uid: authUser.uid,
+                username: username,
+                assignedDialogues: assignedDialogues,
+                recoveredDialogues: recoveredDialogues.length > 0,
+                message: 'Profile recreated successfully'
+            };
+        } catch (error) {
+            console.error('❌ Error recreating Prolific profile:', error);
+            
+            if (error.code === 'auth/wrong-password') {
+                return { 
+                    success: false, 
+                    message: 'Incorrect password. Cannot recreate profile without correct password.' 
+                };
+            } else if (error.code === 'auth/user-not-found') {
+                return { 
+                    success: false, 
+                    message: 'Auth account not found. Cannot recreate profile.' 
+                };
+            }
+            
+            return { success: false, message: error.message || 'Failed to recreate profile' };
+        }
+    }
+
+    /**
      * Check if Prolific user has completed all assigned annotations
      * @param {string} uid - User UID
      * @returns {Promise<boolean>}
