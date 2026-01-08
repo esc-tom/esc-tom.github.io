@@ -65,54 +65,8 @@ const selectedAppraisalsContainer = document.getElementById('selected-appraisals
 
 // LocalStorage keys
 const STORAGE_KEYS = {
-    USERS: 'annotation_users',
-    PASSWORDS: 'annotation_passwords',
-    CURRENT_USER: 'annotation_username',
-    ANNOTATIONS_PREFIX: 'annotation_data_'
+    CURRENT_USER: 'annotation_username'
 };
-
-// Password hashing utility using SHA-256
-async function hashPassword(password, username) {
-    // Use username as salt for simplicity
-    const salt = username.toLowerCase();
-    const textToHash = password + salt;
-    
-    // Convert string to Uint8Array
-    const msgBuffer = new TextEncoder().encode(textToHash);
-    
-    // Hash the message
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    
-    // Convert ArrayBuffer to hex string
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    
-    return hashHex;
-}
-
-// Verify password
-async function verifyPassword(username, password) {
-    const passwordsJson = localStorage.getItem(STORAGE_KEYS.PASSWORDS);
-    const passwords = passwordsJson ? JSON.parse(passwordsJson) : {};
-    
-    if (!passwords[username]) {
-        return false;
-    }
-    
-    const hashedInput = await hashPassword(password, username);
-    return hashedInput === passwords[username];
-}
-
-// Store password hash
-async function storePasswordHash(username, password) {
-    const passwordsJson = localStorage.getItem(STORAGE_KEYS.PASSWORDS);
-    const passwords = passwordsJson ? JSON.parse(passwordsJson) : {};
-    
-    const hashedPassword = await hashPassword(password, username);
-    passwords[username] = hashedPassword;
-    
-    localStorage.setItem(STORAGE_KEYS.PASSWORDS, JSON.stringify(passwords));
-}
 
 // Initialize
 async function init() {
@@ -129,24 +83,34 @@ async function init() {
         
         // Handle Prolific participant
         await handleProlificSession();
-    } else {
-        // Regular session flow
-        // Check if user is already logged in
-        const savedUsername = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-        if (savedUsername) {
-            currentUsername = savedUsername;
-            // Initialize Firebase to verify user session
-            if (!firebaseReady) {
-                await initFirebaseStorage();
-            }
-            // Load assigned dialogues will be called in initializeApp > loadDialogues
+        return;
+    }
+
+    // Regular session flow
+    setupLoginListeners();
+
+    if (!firebaseReady) {
+        await initFirebaseStorage();
+    }
+
+    // Wait for persisted Firebase auth session (if any)
+    const authUser = await firebaseStorage.waitForAuthReady();
+    if (authUser) {
+        const profile = await firebaseStorage.getUserProfile(authUser.uid);
+        
+        if (profile && profile.username) {
+            currentUsername = profile.username;
             hideLoginModal();
             await initializeApp();
-        } else {
-            // Show login modal
-            setupLoginListeners();
+            return;
         }
+
+        // If auth exists but no profile, force logout and show login
+        await firebaseStorage.logout();
     }
+
+    // No authenticated user; show login modal
+    showLoginModal();
 }
 
 // Handle Prolific participant session
@@ -196,7 +160,6 @@ async function handleProlificSession() {
         
         currentUsername = username;
         assignedDialogues = result.assignedDialogues || sampledDialogues;
-        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, username);
         
         // Hide login modal and start annotation
         hideLoginModal();
@@ -1795,6 +1758,14 @@ async function performSave() {
                 : '🎉 All dialogues completed!';
             showStatus(completionMsg, 'success');
             
+            // Show feedback modal (unless already submitted)
+            const hasFeedback = await firebaseStorage.hasFeedback();
+            if (!hasFeedback) {
+                setTimeout(() => {
+                    showFeedbackModal();
+                }, 2000); // Show after 2 seconds
+            }
+            
             // Handle Prolific completion
             if (isProlific) {
                 await handleProlificCompletion();
@@ -1920,19 +1891,31 @@ async function checkUsernameAvailability(username) {
             await initFirebaseStorage();
         }
         
-        const isTaken = await firebaseStorage.isUsernameTaken(username);
-        
-        if (isTaken) {
-            statusIcon.className = 'username-status taken';
-            statusIcon.textContent = '✗';
-            availabilityText.className = 'username-availability taken';
-            availabilityText.textContent = 'Username already taken';
-        } else {
+        const { existsInAuth, existsInFirestore } = await firebaseStorage.getUsernameStatus(username);
+
+        if (!existsInAuth && !existsInFirestore) {
+            // Fully available
             statusIcon.className = 'username-status available';
             statusIcon.textContent = '✓';
             availabilityText.className = 'username-availability available';
             availabilityText.textContent = 'Username available';
+            return;
         }
+
+        // Orphaned state: exists in Auth but missing Firestore profile (can be reclaimed)
+        if (existsInAuth && !existsInFirestore) {
+            statusIcon.className = 'username-status available';
+            statusIcon.textContent = '⚠';
+            availabilityText.className = 'username-availability available';
+            availabilityText.textContent = 'Deleted account - will be reclaimed with your password';
+            return;
+        }
+
+        // Any other combination = taken
+        statusIcon.className = 'username-status taken';
+        statusIcon.textContent = '✗';
+        availabilityText.className = 'username-availability taken';
+        availabilityText.textContent = 'Username already taken';
     } catch (error) {
         console.error('Error checking username:', error);
         statusIcon.textContent = '';
@@ -2037,16 +2020,23 @@ async function handleLogin() {
             showLoginError(result.message);
             return;
         }
+
+        // Ensure Firestore profile exists for this authenticated user
+        const profile = await firebaseStorage.getUserProfile(result.uid);
+        if (!profile) {
+            await firebaseStorage.logout();
+            showLoginError('Account not found in annotation records. Please register.');
+            return;
+        }
         
-        currentUsername = username;
-        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, username);
+        currentUsername = profile.username || username;
         
         // Load assigned dialogues for this user
         await loadAssignedDialogues();
         
         hideLoginModal();
         await initializeApp();
-        showStatus(`Welcome back, ${username}! You have ${assignedDialogues.length} dialogues to annotate.`, 'success');
+        showStatus(`Welcome back, ${currentUsername}! You have ${assignedDialogues.length} dialogues to annotate.`, 'success');
     } catch (error) {
         console.error('Login error:', error);
         showLoginError('Error logging in: ' + error.message);
@@ -2097,10 +2087,18 @@ async function handleRegister() {
             await initFirebaseStorage();
         }
 
-        // Pre-check if username is already taken
-        const isTaken = await firebaseStorage.isUsernameTaken(username);
-        if (isTaken) {
+        // Pre-check if username is already taken (Auth + Firestore)
+        const { existsInAuth, existsInFirestore } = await firebaseStorage.getUsernameStatus(username);
+        
+        if (existsInAuth && existsInFirestore) {
+            // Both exist - username is fully taken
             showRegisterError('Username already taken. Please choose another one.');
+            return;
+        }
+        
+        if (!existsInAuth && existsInFirestore) {
+            // Firestore exists but no Auth (shouldn't happen normally)
+            showRegisterError('Username exists in records but Auth is missing. Please contact the researcher.');
             return;
         }
 
@@ -2114,8 +2112,17 @@ async function handleRegister() {
         
         console.log(`🎲 Sampled ${sampledDialogues.length} dialogues for ${username}:`, sampledDialogues);
 
-        // Attempt registration with assigned dialogues
-        const result = await firebaseStorage.registerUser(username, password, sampledDialogues);
+        let result;
+        
+        if (existsInAuth && !existsInFirestore) {
+            // Orphaned Auth account detected - attempt to reclaim it
+            console.log('🔄 Orphaned Auth account detected, attempting to reclaim...');
+            showRegisterError('Reclaiming orphaned account...'); // Show progress
+            result = await firebaseStorage.reclaimOrphanedAccount(username, password, sampledDialogues);
+        } else {
+            // Normal registration - no existing account
+            result = await firebaseStorage.registerUser(username, password, sampledDialogues);
+        }
         
         if (!result.success) {
             showRegisterError(result.message);
@@ -2124,7 +2131,6 @@ async function handleRegister() {
         
         currentUsername = username;
         assignedDialogues = result.assignedDialogues || sampledDialogues;
-        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, username);
         
         hideRegisterModal();
         await initializeApp();
@@ -2348,6 +2354,137 @@ function showProlificError(message) {
     
     document.body.innerHTML = errorHTML;
 }
+
+// ========== FEEDBACK MODAL ==========
+
+let feedbackRating = 0;
+
+function showFeedbackModal() {
+    const modal = document.getElementById('feedback-modal');
+    if (modal) {
+        modal.classList.add('show');
+        setupFeedbackListeners();
+        resetFeedbackForm();
+    }
+}
+
+function hideFeedbackModal() {
+    const modal = document.getElementById('feedback-modal');
+    if (modal) {
+        modal.classList.remove('show');
+    }
+}
+
+function resetFeedbackForm() {
+    feedbackRating = 0;
+    document.getElementById('feedback-rating').value = '0';
+    document.getElementById('feedback-comments').value = '';
+    
+    // Reset stars
+    const stars = document.querySelectorAll('#feedback-star-rating .star');
+    stars.forEach(star => {
+        star.textContent = '☆';
+        star.classList.remove('selected');
+    });
+    
+    // Hide error
+    const errorDiv = document.getElementById('feedback-error');
+    if (errorDiv) {
+        errorDiv.classList.add('hidden');
+    }
+}
+
+function setupFeedbackListeners() {
+    // Star rating
+    const stars = document.querySelectorAll('#feedback-star-rating .star');
+    stars.forEach(star => {
+        star.addEventListener('click', function() {
+            feedbackRating = parseInt(this.getAttribute('data-rating'));
+            document.getElementById('feedback-rating').value = feedbackRating;
+            
+            // Update visual state
+            stars.forEach((s, idx) => {
+                if (idx < feedbackRating) {
+                    s.textContent = '★';
+                    s.classList.add('selected');
+                } else {
+                    s.textContent = '☆';
+                    s.classList.remove('selected');
+                }
+            });
+        });
+        
+        // Hover effect
+        star.addEventListener('mouseenter', function() {
+            const rating = parseInt(this.getAttribute('data-rating'));
+            stars.forEach((s, idx) => {
+                if (idx < rating) {
+                    s.textContent = '★';
+                } else {
+                    s.textContent = '☆';
+                }
+            });
+        });
+    });
+    
+    const starContainer = document.getElementById('feedback-star-rating');
+    starContainer.addEventListener('mouseleave', function() {
+        // Restore selected rating
+        stars.forEach((s, idx) => {
+            if (idx < feedbackRating) {
+                s.textContent = '★';
+            } else {
+                s.textContent = '☆';
+            }
+        });
+    });
+    
+    // Submit button
+    const submitBtn = document.getElementById('feedback-submit');
+    submitBtn.addEventListener('click', async function() {
+        await handleFeedbackSubmit();
+    });
+    
+    // Skip button
+    const skipBtn = document.getElementById('feedback-skip');
+    skipBtn.addEventListener('click', function() {
+        hideFeedbackModal();
+    });
+}
+
+async function handleFeedbackSubmit() {
+    const comments = document.getElementById('feedback-comments').value.trim();
+    const errorDiv = document.getElementById('feedback-error');
+    
+    // Validate - at least rating or comments required
+    if (feedbackRating === 0 && !comments) {
+        errorDiv.textContent = 'Please provide a rating or comments';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+    
+    try {
+        // Save feedback to Firebase
+        const success = await firebaseStorage.saveFeedback({
+            rating: feedbackRating,
+            comments: comments
+        });
+        
+        if (success) {
+            hideFeedbackModal();
+            showStatus('Thank you for your feedback! 🙏', 'success', 4000);
+        } else {
+            errorDiv.textContent = 'Failed to save feedback. Please try again.';
+            errorDiv.classList.remove('hidden');
+        }
+    } catch (error) {
+        console.error('Error submitting feedback:', error);
+        errorDiv.textContent = 'Error submitting feedback: ' + error.message;
+        errorDiv.classList.remove('hidden');
+    }
+}
+
+// ========== END FEEDBACK MODAL ==========
 
 // ========== END PROLIFIC INTEGRATION ==========
 

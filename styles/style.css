@@ -1929,6 +1929,59 @@ header h1 {
     text-decoration: underline;
 }
 
+/* Star Rating Styles */
+.star-rating {
+    display: flex;
+    gap: 8px;
+    font-size: 32px;
+    margin: 10px 0;
+    justify-content: center;
+}
+
+.star-rating .star {
+    cursor: pointer;
+    color: #ddd;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.star-rating .star:hover {
+    color: #fbbf24;
+    transform: scale(1.1);
+}
+
+.star-rating .star.selected {
+    color: #fbbf24;
+}
+
+#feedback-modal .form-group {
+    margin-bottom: 20px;
+}
+
+#feedback-modal .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+#feedback-modal textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 14px;
+    resize: vertical;
+    min-height: 120px;
+}
+
+#feedback-modal textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
 @media (max-width: 1200px) {
     .main-content {
         grid-template-columns: 1fr;

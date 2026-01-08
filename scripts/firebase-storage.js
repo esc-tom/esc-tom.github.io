@@ -73,6 +73,59 @@ class FirebaseStorage {
     }
 
     /**
+     * Wait for Firebase Auth to resolve current session
+     * @returns {Promise<firebase.User|null>}
+     */
+    waitForAuthReady() {
+        if (!this.auth) {
+            throw new Error('Firebase not initialized');
+        }
+
+        // If auth state is already available, resolve immediately
+        if (this.auth.currentUser) {
+            this.currentUser = this.auth.currentUser;
+            return Promise.resolve(this.currentUser);
+        }
+
+        // Otherwise, wait for the first auth state callback
+        return new Promise((resolve) => {
+            const unsubscribe = this.auth.onAuthStateChanged(
+                (user) => {
+                    this.currentUser = user;
+                    unsubscribe();
+                    resolve(user);
+                },
+                () => {
+                    unsubscribe();
+                    resolve(null);
+                }
+            );
+        });
+    }
+
+    /**
+     * Fetch a user's profile from Firestore
+     * @param {string} uid - Firebase Auth UID
+     * @returns {Promise<Object|null>}
+     */
+    async getUserProfile(uid) {
+        if (!this.db) {
+            throw new Error('Firestore not initialized');
+        }
+
+        try {
+            const doc = await this.db.collection('users').doc(uid).get();
+            if (!doc.exists) {
+                return null;
+            }
+            return { uid: doc.id, ...doc.data() };
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
+            return null;
+        }
+    }
+
+    /**
      * Register new user with username and password
      * Creates email from username for Firebase Auth
      * @param {string} username - User's chosen username
@@ -228,6 +281,138 @@ class FirebaseStorage {
             }
             console.error('Error checking username:', error);
             return false; // On error, assume available to not block registration
+        }
+    }
+
+    /**
+     * Check username presence in Auth and Firestore
+     * @param {string} username
+     * @returns {Promise<{existsInAuth: boolean, existsInFirestore: boolean, authUid: string|null}>}
+     */
+    async getUsernameStatus(username) {
+        const email = `${username}@annotation.local`;
+        
+        let existsInAuth = false;
+        let existsInFirestore = false;
+        let authUid = null;
+
+        // Check Firebase Auth (email-based)
+        try {
+            const methods = await this.auth.fetchSignInMethodsForEmail(email);
+            existsInAuth = methods.length > 0;
+        } catch (error) {
+            if (error.code !== 'auth/user-not-found') {
+                console.error('Error checking username in Auth:', error);
+            }
+        }
+
+        // Check Firestore profile
+        try {
+            const snap = await this.db.collection('users')
+                .where('username', '==', username)
+                .limit(1)
+                .get();
+            existsInFirestore = !snap.empty;
+            if (existsInFirestore) {
+                authUid = snap.docs[0].id;
+            }
+        } catch (error) {
+            console.error('Error checking username in Firestore:', error);
+        }
+
+        return { existsInAuth, existsInFirestore, authUid };
+    }
+
+    /**
+     * Reclaim an orphaned Auth account (Auth exists but no Firestore profile)
+     * This attempts to sign in with the old password and recreate the Firestore profile
+     * @param {string} username
+     * @param {string} password - The original password for the orphaned account
+     * @param {Array<string>} assignedDialogues
+     * @returns {Promise<Object>} - {success, uid, username, message}
+     */
+    async reclaimOrphanedAccount(username, password, assignedDialogues = []) {
+        try {
+            const email = `${username}@annotation.local`;
+            
+            // Attempt to sign in with the old account
+            const userCredential = await this.auth.signInWithEmailAndPassword(email, password);
+            this.currentUser = userCredential.user;
+            
+            // Check if Firestore profile exists
+            const existingProfile = await this.db.collection('users').doc(this.currentUser.uid).get();
+            
+            if (existingProfile.exists) {
+                // Profile already exists, this is not an orphaned account
+                return {
+                    success: true,
+                    uid: this.currentUser.uid,
+                    username: username,
+                    message: 'Account already exists with profile'
+                };
+            }
+            
+            // Recreate the Firestore profile
+            const userDoc = {
+                username: username,
+                email: email,
+                assignedDialogues: assignedDialogues,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                reclaimed: true,
+                reclaimedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            
+            await this.db.collection('users').doc(this.currentUser.uid).set(userDoc);
+            
+            console.log('🔄 Orphaned account reclaimed:', username);
+            return {
+                success: true,
+                uid: this.currentUser.uid,
+                username: username,
+                assignedDialogues: assignedDialogues,
+                message: 'Account successfully reclaimed'
+            };
+        } catch (error) {
+            console.error('❌ Error reclaiming account:', error);
+            
+            if (error.code === 'auth/wrong-password') {
+                return { 
+                    success: false, 
+                    message: 'This username has an orphaned account. Please use the original password, or contact the researcher to delete it from Firebase Console.' 
+                };
+            } else if (error.code === 'auth/user-not-found') {
+                return { 
+                    success: false, 
+                    message: 'User not found. Please register as new user.' 
+                };
+            } else if (error.code === 'auth/too-many-requests') {
+                return {
+                    success: false,
+                    message: 'Too many failed attempts. Please wait a moment and try again, or contact the researcher.'
+                };
+            }
+            
+            return { success: false, message: 'Error reclaiming account: ' + error.message };
+        }
+    }
+
+    /**
+     * Delete current user's Auth account (can only delete own account)
+     * @returns {Promise<boolean>}
+     */
+    async deleteCurrentAuthAccount() {
+        if (!this.currentUser) {
+            throw new Error('No user signed in');
+        }
+
+        try {
+            await this.currentUser.delete();
+            this.currentUser = null;
+            console.log('🗑️ Auth account deleted');
+            return true;
+        } catch (error) {
+            console.error('Error deleting auth account:', error);
+            throw error;
         }
     }
 
@@ -594,6 +779,57 @@ class FirebaseStorage {
             return !snapshot.empty;
         } catch (error) {
             console.error('Error checking Prolific participant:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Save user feedback about the annotation tool
+     * @param {Object} feedbackData - Feedback data {rating, comments}
+     * @returns {Promise<boolean>}
+     */
+    async saveFeedback(feedbackData) {
+        if (!this.currentUser) {
+            console.warn('User not authenticated');
+            return false;
+        }
+
+        try {
+            // Save feedback in user's document
+            await this.db.collection('users').doc(this.currentUser.uid).update({
+                feedback: {
+                    rating: feedbackData.rating || 0,
+                    comments: feedbackData.comments || '',
+                    submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }
+            });
+
+            console.log('✅ Feedback saved successfully');
+            return true;
+        } catch (error) {
+            console.error('Error saving feedback:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Check if user has already submitted feedback
+     * @returns {Promise<boolean>}
+     */
+    async hasFeedback() {
+        if (!this.currentUser) {
+            return false;
+        }
+
+        try {
+            const userDoc = await this.db.collection('users').doc(this.currentUser.uid).get();
+            if (userDoc.exists) {
+                const data = userDoc.data();
+                return !!(data.feedback && data.feedback.submittedAt);
+            }
+            return false;
+        } catch (error) {
+            console.error('Error checking feedback:', error);
             return false;
         }
     }
