@@ -418,6 +418,78 @@ class FirebaseStorage {
     }
 
     /**
+     * Ensure user document exists in Firestore
+     * Creates it if missing, updates lastActiveAt if it exists
+     * @param {string} uid - User UID
+     * @param {string} username - Username
+     * @param {string} email - User email
+     * @returns {Promise<boolean>} - True if document exists/created, false on error
+     */
+    async ensureUserDocumentExists(uid, username, email) {
+        if (!this.db) {
+            console.error('Firestore not initialized');
+            return false;
+        }
+
+        try {
+            const userDocRef = this.db.collection('users').doc(uid);
+            const userDoc = await userDocRef.get();
+            
+            if (!userDoc.exists) {
+                // Create user document with minimal required fields
+                // Use merge: true to avoid overwriting if document gets created concurrently
+                await userDocRef.set({
+                    username: username,
+                    email: email || `${username}@annotation.local`,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    lastActiveAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                
+                // Verify document was created
+                const verifyDoc = await userDocRef.get();
+                if (!verifyDoc.exists) {
+                    console.error('❌ Failed to verify user document creation');
+                    return false;
+                }
+                
+                console.log('✅ Created missing user document:', uid);
+                return true;
+            } else {
+                // Document exists - update lastActiveAt timestamp
+                // Also ensure username is set if missing (shouldn't happen, but defensive)
+                const updateData = {
+                    lastActiveAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                
+                const existingData = userDoc.data();
+                if (!existingData.username) {
+                    updateData.username = username;
+                }
+                if (!existingData.email) {
+                    updateData.email = email || `${username}@annotation.local`;
+                }
+                
+                await userDocRef.update(updateData).catch(err => {
+                    // If update fails, try set with merge as fallback
+                    console.warn('Update failed, trying set with merge:', err);
+                    return userDocRef.set(updateData, { merge: true });
+                });
+                
+                return true;
+            }
+        } catch (error) {
+            console.error('❌ Error ensuring user document exists:', error);
+            console.error('Error details:', {
+                code: error.code,
+                message: error.message,
+                uid: uid,
+                username: username
+            });
+            return false;
+        }
+    }
+
+    /**
      * Save annotation to Firestore
      * @param {string} username - Current username
      * @param {string} dialogueId - Dialogue ID
@@ -451,6 +523,18 @@ class FirebaseStorage {
         }
 
         try {
+            // Ensure the user document exists before writing to subcollection
+            // This is required by Firestore security rules - parent document must exist
+            const userDocExists = await this.ensureUserDocumentExists(
+                user.uid,
+                username,
+                user.email || `${username}@annotation.local`
+            );
+            
+            if (!userDocExists) {
+                throw new Error('Failed to ensure user document exists. Cannot save annotation.');
+            }
+
             // Use per-user annotations subcollection: users/{uid}/annotations/{dialogueId}
             const userDocRef = this.db.collection('users').doc(user.uid);
             const annRef = userDocRef.collection('annotations').doc(dialogueId);
@@ -458,6 +542,7 @@ class FirebaseStorage {
             // Ensure currentUser is set for future operations
             this.currentUser = user;
 
+            // Write annotation to subcollection
             await annRef.set({
                 userId: user.uid,
                 username: username,
@@ -470,14 +555,25 @@ class FirebaseStorage {
             return true;
         } catch (error) {
             console.error('❌ Error saving annotation:', error);
+            console.error('Error details:', {
+                code: error.code,
+                message: error.message,
+                uid: user.uid,
+                username: username,
+                dialogueId: dialogueId
+            });
             
-            // Provide more specific error messages
+            // Provide more specific error messages with debugging info
             if (error.code === 'permission-denied') {
-                throw new Error('Permission denied. Please check Firestore security rules.');
+                const debugInfo = `User: ${username} (${user.uid}), Dialogue: ${dialogueId}`;
+                console.error('Permission denied details:', debugInfo);
+                throw new Error(`Permission denied when saving annotation. This usually means:\n1. Firestore security rules don't allow writing to users/${user.uid}/annotations/${dialogueId}\n2. The user document doesn't exist (should be auto-created)\n3. Authentication token is invalid\n\nDebug: ${debugInfo}\n\nPlease check Firestore security rules allow authenticated users to write to their own annotations subcollection.`);
             } else if (error.code === 'unavailable') {
-                throw new Error('Firestore is unavailable. Please check your internet connection.');
+                throw new Error('Firestore is unavailable. Please check your internet connection and try again.');
             } else if (error.code === 'unauthenticated') {
                 throw new Error('Authentication expired. Please login again.');
+            } else if (error.code === 'failed-precondition') {
+                throw new Error('Firestore precondition failed. The user document may be in an invalid state. Please try logging out and back in.');
             } else if (error.message) {
                 throw new Error(`Failed to save annotation: ${error.message}`);
             } else {
