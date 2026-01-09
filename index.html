@@ -83,7 +83,12 @@
         <header>
             <div class="header-title-row">
                 <h1>ESC-ToM Annotation Tool</h1>
-                <div class="user-badge" id="user-badge"></div>
+                <div class="header-actions">
+                    <button id="show-instructions-btn" class="btn btn-secondary btn-small" title="View Instructions">
+                        📖 Instructions
+                    </button>
+                    <div class="user-badge" id="user-badge"></div>
+                </div>
             </div>
             <div class="header-controls">
                 <div class="dialogue-selector">
@@ -224,7 +229,7 @@
                         <div class="form-group">
                             <label for="desire">Desire:</label>
                             <div class="bdi-input-wrapper">
-                                <span class="bdi-prefix">I wish to</span>
+                                <span class="bdi-prefix">I wish that</span>
                                 <input type="text" id="desire" placeholder="ground truth will load here..."></input>
                             </div>
                         </div>
@@ -356,6 +361,222 @@
             <div class="modal-footer" style="flex-direction: row; justify-content: center; gap: 16px;">
                 <button type="button" id="feedback-skip" class="btn btn-secondary">Skip</button>
                 <button type="button" id="feedback-submit" class="btn btn-success" disabled>Submit Feedback</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Instruction Modal -->
+    <div id="instruction-modal" class="modal instruction-modal">
+        <div class="modal-content instruction-modal-content">
+            <div class="modal-header">
+                <h2>📚 ESC-ToM Annotation Instructions</h2>
+                <button id="close-instruction-modal" class="modal-close-btn" aria-label="Close">×</button>
+            </div>
+            <div class="modal-body instruction-body">
+                <div class="instruction-section">
+                    <h3>Overview & Goal</h3>
+                    <p>Welcome! In this study, you will review AI-generated therapeutic dialogue transcripts and revise the pre-filled annotations regarding the patient's mental state. <strong>Please read the instructions carefully before starting.</strong></p>
+                </div>
+
+                <div class="instruction-section">
+                    <h3>Key Concepts:</h3>
+                    <ul class="instruction-list">
+                        <li><strong>BDI (Belief, Desire, Intention):</strong> The patient's mental state <strong>before the bothering event occurred.</strong></li>
+                        <li><strong>Cognitive Appraisals:</strong> How the patient subjectively evaluates their situation <strong>after the bothering event occurred.</strong>. There will be 14 cognitive appraisal dimensions which are defined in the later part of the instructions.</li>
+                        <li><strong>Minimum Context Turn:</strong> The earliest turn of the dialogue where there is enough information to accurately deduce the patient's mental state (incl. both BDI and cognitive appraisals).</li>
+                    </ul>
+                </div>
+
+                <div class="instruction-section">
+                    <h3>Workflow Summary</h3>
+                    <p>For every dialogue, please complete the following four tasks in this exact order:</p>
+                    
+                    <div class="workflow-tasks">
+                        <div class="workflow-task">
+                            <div class="workflow-task-header">
+                                <span class="workflow-number">1</span>
+                                <strong>Read & Edit Utterances</strong>
+                            </div>
+                            <p class="workflow-description">Fix weird or implausible content in the utterances.</p>
+                            <div class="workflow-howto">
+                                <strong>How to Edit:</strong> Hover over the utterance and click "Edit". Modify the text and click "Save". (The text will show a yellow highlight and an (edited) marker).
+                            </div>
+                        </div>
+
+                        <div class="workflow-task">
+                            <div class="workflow-task-header">
+                                <span class="workflow-number">2</span>
+                                <strong>Mark Minimum Context Turn</strong>
+                            </div>
+                            <p class="workflow-description">Identify the earliest turn of the dialogue where there is enough information to accurately deduce the patient's mental state (incl. both BDI and cognitive appraisals).</p>
+                            <div class="workflow-howto">
+                                <strong>How to Edit:</strong> Select the minimum necessary context by clicking on the turn pair.
+                            </div>
+                        </div>
+
+                        <div class="workflow-task">
+                            <div class="workflow-task-header">
+                                <span class="workflow-number">3</span>
+                                <strong>Revise BDI</strong>
+                            </div>
+                            <p class="workflow-description">Ensure the pre-event Belief, Desire, and Intention accurately reflect the patient's state before the bothering event occurred.</p>
+                            <div class="workflow-howto">
+                                <strong>How to Edit:</strong> Simply revise the content of the BDI, the prefix is already provided for you.
+                            </div>
+                        </div>
+
+                        <div class="workflow-task">
+                            <div class="workflow-task-header">
+                                <span class="workflow-number">4</span>
+                                <strong>Revise Appraisals</strong>
+                            </div>
+                            <p class="workflow-description">Select the top 5 appraisal dimensions that describe how the patient evaluates the situation <strong>after the bothering event occurred.</strong></p>
+                            <div class="workflow-howto">
+                                <strong>How to Edit:</strong> Remove the appraisal dimensions that are not salient in the given situation and add the ones that are. You can also drag and drop the appraisal dimensions to reorder them by importance.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+
+                <div class="instruction-section">
+                    <h3>Task 1: Edit Utterances</h3>
+                    <p><strong>Goal:</strong> Fix logic errors and garbled text. <span style="text-decoration: underline;">Do not rewrite style.</span></p>
+                    
+                    <table class="instruction-table" style="width: 100%; border-collapse: collapse; margin-bottom: 1rem;">
+                        <thead>
+                            <tr style="text-align: left; background: #f4f4f4;">
+                                <th style="padding: 8px;">❌ DO NOT EDIT</th>
+                                <th style="padding: 8px;">✅ DO EDIT</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 8px; vertical-align: top;">
+                                    <ul style="margin: 0; padding-left: 20px;">
+                                        <li>Natural slang or pauses.</li>
+                                        <li>Minor stylistic preferences.</li>
+                                        <li>Grammatically correct sentences.</li>
+                                    </ul>
+                                </td>
+                                <td style="padding: 8px; vertical-align: top;">
+                                    <ul style="margin: 0; padding-left: 20px;">
+                                        <li><strong>Implausible Events:</strong> Physically impossible scenarios.</li>
+                                        <li><strong>Nonsense:</strong> Direct contradictions.</li>
+                                        <li><strong>Garbled Text:</strong> Typos that destroy meaning.</li>
+                                    </ul>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+            
+                    <div class="instruction-example" style="background: #f9f9f9; padding: 10px; border-left: 4px solid #ccc;">
+                        <strong>Example Utterance:</strong> "I saw my son getting bullied at school while I was in a meeting with my boss."<br>
+                        <strong>Issue:</strong> Physically impossible to see the school while in an office meeting.<br>
+                        <strong>Fix:</strong> "I <strong>was informed</strong> that my son was bullied at school while I was in a meeting with my boss."
+                    </div>
+                </div>
+            
+                <div class="instruction-section">
+                    <h3>Task 2: Mark Minimum Context Turn</h3>
+                    <p><strong>Goal:</strong> Select the <strong>earliest</strong> turn pair that reveals the patient's mental state.</p>
+                    <ol class="instruction-list">
+                        <li>Read from the start.</li>
+                        <li>Ask: <em>"When do I first understand the pre-event mental state?"</em></li>
+                        <li>Click that turn pair to mark it.</li>
+                    </ol>
+                    <p class="instruction-note" style="color: #d9534f; background: #fdf7f7; padding: 8px; border: 1px solid #d9534f; border-radius: 4px;">
+                        <strong>CRITICAL:</strong> Select the <strong>minimum</strong> context. If Turn 4 is sufficient, do not mark Turn 8.
+                    </p>
+                </div>
+            
+                <div class="instruction-section">
+                    <h3>Task 3: Revise Patient's BDI</h3>
+                    <p><strong>Goal:</strong> Define the mental state <strong>before</strong> the event occurred.</p>
+                    <p><strong>Logic:</strong> Must form a coherent chain: <strong>Belief &rarr; Desire &rarr; Intention</strong>.</p>
+            
+                    <table class="instruction-table" style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+                        <thead style="background: #f4f4f4;">
+                            <tr>
+                                <th style="padding: 8px; text-align: left;">Component</th>
+                                <th style="padding: 8px; text-align: left;">❌ Needs Revision</th>
+                                <th style="padding: 8px; text-align: left;">✅ Better Version</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Belief</strong><br><small>(Specific truth)</small></td>
+                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">"I believed I am isolated."</td>
+                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">"I believed I am a burden to my <strong>family</strong>."</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Desire</strong><br><small>(Pre-event want)</small></td>
+                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">"I wanted to be happy."</td>
+                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">"I wanted to feel <strong>understood</strong>."</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px;"><strong>Intention</strong><br><small>(Actionable plan)</small></td>
+                                <td style="padding: 8px;">"I intended to fix it."</td>
+                                <td style="padding: 8px;">"I intended to <strong>talk to them</strong>."</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            
+                <div class="instruction-section">
+                    <h3>Task 4: Revise Appraisals</h3>
+                    <p><strong>Goal:</strong> Select the <strong>Top 5</strong> dimensions based on evidence.</p>
+                    
+                    <ul class="instruction-list">
+                        <li><strong>ADD</strong> if dialogue clearly supports it (e.g., <em>"I have no idea what happens next"</em> &rarr; <strong>Unpredictability</strong>).</li>
+                        <li><strong>REMOVE</strong> if dialogue contradicts it (e.g., <em>"It's out of my hands"</em> &rarr; Remove <strong>Self Control</strong>).</li>
+                    </ul>
+            
+                    <p><strong>Available Appraisal Dimensions:</strong></p>
+                    <table id="instruction-appraisals-table" class="instruction-appraisals-table">
+                        <thead>
+                            <tr>
+                                <th>Dimension</th>
+                                <th>Definition</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Appraisal dimensions will be populated dynamically from cognitive_dimensions.json -->
+                        </tbody>
+                    </table>
+                </div>
+
+
+
+                <div class="instruction-section">
+                    <h3>Quality Checklist</h3>
+                    <p>Before clicking "Save Annotation," ask yourself:</p>
+                    <ul class="instruction-checklist">
+                        <li><strong>Is the Text Clean?</strong><br>Did I fix any impossible or garbled sentences?</li>
+                        <li><strong>Is the Context Precise?</strong><br>Is the green checkmark on the earliest possible turn?</li>
+                        <li><strong>Is the BDI Pre-Event?</strong><br>Do the Beliefs and Desires describe how they felt before the issue started?</li>
+                        <li><strong>Are Appraisals Supported?</strong><br>Do the 5 selected dimensions match the patient's specific words?</li>
+                    </ul>
+                </div>
+
+                <div class="instruction-section">
+                    <h3>FAQs</h3>
+                    <div class="faq-item">
+                        <p><strong>Do I have to change everything?</strong></p>
+                        <p>No. If the pre-filled info is accurate, leave it.</p>
+                    </div>
+                    <div class="faq-item">
+                        <p><strong>How long should this take?</strong></p>
+                        <p>Roughly 3-5 minutes per dialogue.</p>
+                    </div>
+                    <div class="faq-item">
+                        <p><strong>What if I accidentally closed the annotation website?</strong></p>
+                        <p>Don't worry. Return to the prolific study page and click the same link to resume your annotation.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="instruction-understood-btn" class="btn btn-success btn-large">Got it, let's start!</button>
             </div>
         </div>
     </div>

@@ -67,7 +67,8 @@ const selectedAppraisalsContainer = document.getElementById('selected-appraisals
 
 // LocalStorage keys
 const STORAGE_KEYS = {
-    CURRENT_USER: 'annotation_username'
+    CURRENT_USER: 'annotation_username',
+    INSTRUCTIONS_SEEN: 'instructions_seen'
 };
 
 // Initialize
@@ -91,6 +92,7 @@ async function init() {
 
     // Regular session flow
     setupLoginListeners();
+    setupInstructionListeners(); // Setup instruction modal listeners
 
     if (!firebaseReady) {
         await initFirebaseStorage();
@@ -463,6 +465,13 @@ async function initializeApp() {
         const indexToLoad = firstUnannotated !== -1 ? firstUnannotated : 0;
         dialogueSelect.value = indexToLoad;
         await handleDialogueChange();
+    }
+    
+    // Show instructions on first login
+    if (!hasSeenInstructions()) {
+        setTimeout(() => {
+            showInstructionModal();
+        }, 500); // Small delay to ensure UI is ready
     }
 }
 
@@ -1018,7 +1027,7 @@ function showExplorationTurns() {
 // BDI prefixes
 const BDI_PREFIXES = {
     belief: 'I believe that',
-    desire: 'I wish to',
+    desire: 'I wish that',
     intention: 'I intend to'
 };
 
@@ -2703,6 +2712,115 @@ function showRegisterModal() {
     setTimeout(() => {
         document.getElementById('register-username-input').focus();
     }, 100);
+}
+
+// ========== INSTRUCTION MODAL FUNCTIONS ==========
+
+// Format dimension key to readable name (e.g., "predictability_of_event" -> "Predictability of Event")
+function formatDimensionName(key) {
+    return key
+        .split('_')
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
+}
+
+// Populate cognitive appraisal dimensions in instruction modal
+async function populateInstructionAppraisals() {
+    try {
+        const tableBody = document.querySelector('#instruction-appraisals-table tbody');
+        if (!tableBody) return;
+        
+        // Load cognitive dimensions if not already loaded
+        if (cognitiveDimensions.length === 0) {
+            const response = await fetch('data/cognitive_dimensions.json');
+            const dimensions = await response.json();
+            cognitiveDimensions = dimensions;
+        }
+        
+        // Clear existing content
+        tableBody.innerHTML = '';
+        
+        // Populate with dimensions from JSON
+        cognitiveDimensions.forEach(dimensionObj => {
+            const [key, definition] = Object.entries(dimensionObj)[0];
+            const formattedName = formatDimensionName(key);
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="dimension-name">${formattedName}</td>
+                <td class="dimension-definition">${definition}</td>
+            `;
+            tableBody.appendChild(row);
+        });
+    } catch (error) {
+        console.error('Error populating instruction appraisals:', error);
+        // Fallback to showing error message
+        const tableBody = document.querySelector('#instruction-appraisals-table tbody');
+        if (tableBody) {
+            tableBody.innerHTML = '<tr><td colspan="2">Error loading cognitive dimensions. Please refresh the page.</td></tr>';
+        }
+    }
+}
+
+function showInstructionModal() {
+    const modal = document.getElementById('instruction-modal');
+    modal.classList.add('show');
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+    // Populate appraisal dimensions dynamically
+    populateInstructionAppraisals();
+}
+
+function hideInstructionModal() {
+    const modal = document.getElementById('instruction-modal');
+    modal.classList.remove('show');
+    // Restore body scroll
+    document.body.style.overflow = '';
+}
+
+function hasSeenInstructions() {
+    return localStorage.getItem(STORAGE_KEYS.INSTRUCTIONS_SEEN) === 'true';
+}
+
+function markInstructionsAsSeen() {
+    localStorage.setItem(STORAGE_KEYS.INSTRUCTIONS_SEEN, 'true');
+}
+
+function setupInstructionListeners() {
+    // Show instruction button
+    const showBtn = document.getElementById('show-instructions-btn');
+    if (showBtn) {
+        showBtn.addEventListener('click', () => {
+            showInstructionModal();
+        });
+    }
+    
+    // Close button
+    const closeBtn = document.getElementById('close-instruction-modal');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            hideInstructionModal();
+        });
+    }
+    
+    // Understood button
+    const understoodBtn = document.getElementById('instruction-understood-btn');
+    if (understoodBtn) {
+        understoodBtn.addEventListener('click', () => {
+            markInstructionsAsSeen();
+            hideInstructionModal();
+        });
+    }
+    
+    // Close on backdrop click
+    const modal = document.getElementById('instruction-modal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                markInstructionsAsSeen();
+                hideInstructionModal();
+            }
+        });
+    }
 }
 
 function updateUserBadge() {
