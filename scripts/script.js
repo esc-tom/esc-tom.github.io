@@ -39,6 +39,7 @@ let currentDialogue = null;
 let currentTurnIndex = 0;
 let cognitiveDimensions = [];
 let selectedAppraisals = [];
+let originalAppraisals = []; // Store original ground truth appraisals for comparison
 let minContextTurnIndex = null; // Tracks which turn provides minimum necessary context
 let modifiedUtterances = {}; // Track modified utterances { turnIndex: { plain, marked } }
 const MAX_APPRAISALS = 5;
@@ -790,6 +791,7 @@ async function handleDialogueChange() {
     currentTurnIndex = 0;
     minContextTurnIndex = null; // Reset min context marker
     modifiedUtterances = {}; // Reset modified utterances
+    originalAppraisals = []; // Reset original appraisals (will be set by loadGroundTruth)
     
     // Update dialogue info
     updateDialogueInfo();
@@ -1206,6 +1208,8 @@ function loadGroundTruth() {
     // Pre-populate cognitive appraisals
     if (gt.cognitive_appraisals && Array.isArray(gt.cognitive_appraisals)) {
         selectedAppraisals = [];
+        originalAppraisals = []; // Reset original appraisals
+        
         console.log('  🧠 Loading appraisals:', gt.cognitive_appraisals);
         
         gt.cognitive_appraisals.forEach(dimensionKey => {
@@ -1217,10 +1221,12 @@ function loadGroundTruth() {
             if (dimension) {
                 const key = Object.keys(dimension)[0];
                 const description = Object.values(dimension)[0];
-                selectedAppraisals.push({
+                const appraisalObj = {
                     dimension: key,
                     description: description
-                });
+                };
+                selectedAppraisals.push(appraisalObj);
+                originalAppraisals.push(appraisalObj); // Store original for comparison
                 console.log(`    ✓ Added: ${key}`);
             } else {
                 console.warn(`    ❌ Ground truth dimension "${dimensionKey}" not found in cognitive_dimensions.json`);
@@ -1230,6 +1236,9 @@ function loadGroundTruth() {
         console.log(`  ✓ Pre-selected ${selectedAppraisals.length} appraisals`);
         renderSelectedAppraisals();
         updateAppraisalOptions();
+    } else {
+        // No ground truth appraisals - reset original
+        originalAppraisals = [];
     }
     
     console.log('Ground truth loaded and pre-populated successfully');
@@ -1242,14 +1251,38 @@ async function loadExistingAnnotation() {
         
         if (annotation) {
             // Populate form fields (strip edit markers and prefixes when loading)
-            beliefInput.value = stripPrefix('belief', stripEditMarkers(annotation.belief || ''));
-            desireInput.value = stripPrefix('desire', stripEditMarkers(annotation.desire || ''));
-            intentionInput.value = stripPrefix('intention', stripEditMarkers(annotation.intention || ''));
+            // Support both new structure (annotated_bdi) and old structure (flat) for backward compatibility
+            const bdi = annotation.annotated_bdi || annotation;
+            beliefInput.value = stripPrefix('belief', stripEditMarkers(bdi.belief || ''));
+            desireInput.value = stripPrefix('desire', stripEditMarkers(bdi.desire || ''));
+            intentionInput.value = stripPrefix('intention', stripEditMarkers(bdi.intention || ''));
             
             // Populate cognitive appraisals
             if (annotation.cognitive_appraisals) {
                 selectedAppraisals = annotation.cognitive_appraisals;
+                // Store original appraisals from ground truth for comparison
+                // If ground truth exists, use it; otherwise use loaded annotation as original
+                const gt = currentDialogue?.ground_truth;
+                if (gt && gt.cognitive_appraisals && Array.isArray(gt.cognitive_appraisals)) {
+                    originalAppraisals = gt.cognitive_appraisals.map(dimensionKey => {
+                        const dimension = cognitiveDimensions.find(d => {
+                            const key = Object.keys(d)[0];
+                            return key === dimensionKey;
+                        });
+                        if (dimension) {
+                            const key = Object.keys(dimension)[0];
+                            const description = Object.values(dimension)[0];
+                            return { dimension: key, description: description };
+                        }
+                        return null;
+                    }).filter(a => a !== null);
+                } else {
+                    // No ground truth, use loaded annotation as original
+                    originalAppraisals = JSON.parse(JSON.stringify(annotation.cognitive_appraisals));
+                }
                 renderSelectedAppraisals();
+            } else {
+                originalAppraisals = [];
             }
             
             // Load minimum context turn
@@ -1787,6 +1820,7 @@ function clearAnnotations() {
     desireInput.value = '';
     intentionInput.value = '';
     selectedAppraisals = [];
+    originalAppraisals = []; // Reset original appraisals
     renderSelectedAppraisals();
     updateAppraisalOptions();
     minContextTurnIndex = null;
@@ -1884,6 +1918,9 @@ function showConfirmModal() {
         countEditSpans(desireValue) +
         countEditSpans(intentionValue);
     
+    // Calculate cognitive appraisal edit statistics
+    const appraisalEditStats = calculateAppraisalEditStats();
+    
     const totalEditSpans = utteranceEditSpans + bdiEditSpans;
     
     // Display edit statistics
@@ -1892,6 +1929,39 @@ function showConfirmModal() {
     document.getElementById('confirm-bdi-edits').textContent = bdiEditSpans;
     document.getElementById('confirm-total-edits').textContent = totalEditSpans;
     
+    // Display appraisal edit statistics
+    let appraisalEditElement = document.getElementById('confirm-appraisal-edits');
+    if (!appraisalEditElement) {
+        const summaryItem = document.createElement('div');
+        summaryItem.className = 'summary-item';
+        summaryItem.innerHTML = `
+            <span class="summary-label">Appraisal edits:</span>
+            <span id="confirm-appraisal-edits" class="summary-value"></span>
+        `;
+        document.querySelector('.annotation-summary').appendChild(summaryItem);
+        appraisalEditElement = document.getElementById('confirm-appraisal-edits');
+    }
+    
+    if (appraisalEditStats.was_modified) {
+        const editDetails = [];
+        if (appraisalEditStats.added_count > 0) {
+            editDetails.push(`+${appraisalEditStats.added_count} added`);
+        }
+        if (appraisalEditStats.removed_count > 0) {
+            editDetails.push(`-${appraisalEditStats.removed_count} removed`);
+        }
+        if (appraisalEditStats.order_changed) {
+            editDetails.push('reordered');
+        }
+        appraisalEditElement.textContent = editDetails.join(', ') || 'Modified';
+        appraisalEditElement.style.color = 'var(--primary-color)';
+        appraisalEditElement.style.fontWeight = '600';
+    } else {
+        appraisalEditElement.textContent = 'No changes';
+        appraisalEditElement.style.color = 'var(--text-secondary)';
+        appraisalEditElement.style.fontWeight = 'normal';
+    }
+    
     modal.classList.add('show');
 }
 
@@ -1899,6 +1969,54 @@ function showConfirmModal() {
 function hideConfirmModal() {
     const modal = document.getElementById('confirm-modal');
     modal.classList.remove('show');
+}
+
+// Calculate cognitive appraisal edit statistics
+function calculateAppraisalEditStats() {
+    const originalDimensions = originalAppraisals.map(a => a.dimension);
+    const finalDimensions = selectedAppraisals.map(a => a.dimension);
+    
+    // Count additions (in final but not in original)
+    const addedAppraisals = finalDimensions.filter(dim => !originalDimensions.includes(dim));
+    
+    // Count removals (in original but not in final)
+    const removedAppraisals = originalDimensions.filter(dim => !finalDimensions.includes(dim));
+    
+    // Check if order changed (compare sequences)
+    let orderChanged = false;
+    if (originalDimensions.length === finalDimensions.length) {
+        // Same length - check if order is different
+        const originalOrder = originalDimensions.join(',');
+        const finalOrder = finalDimensions.join(',');
+        orderChanged = originalOrder !== finalOrder;
+    } else {
+        // Different length - order comparison is less meaningful, but we can check
+        // if any items that exist in both are in different positions
+        const commonDimensions = originalDimensions.filter(dim => finalDimensions.includes(dim));
+        if (commonDimensions.length > 1) {
+            const originalIndices = commonDimensions.map(dim => originalDimensions.indexOf(dim));
+            const finalIndices = commonDimensions.map(dim => finalDimensions.indexOf(dim));
+            orderChanged = JSON.stringify(originalIndices) !== JSON.stringify(finalIndices);
+        }
+    }
+    
+    // Count total modifications (additions + removals + reordering)
+    const totalModifications = addedAppraisals.length + removedAppraisals.length + (orderChanged ? 1 : 0);
+    
+    // Check if list was modified at all
+    const wasModified = totalModifications > 0;
+    
+    return {
+        original_count: originalDimensions.length,
+        final_count: finalDimensions.length,
+        added_count: addedAppraisals.length,
+        removed_count: removedAppraisals.length,
+        added_appraisals: addedAppraisals,
+        removed_appraisals: removedAppraisals,
+        order_changed: orderChanged,
+        total_modifications: totalModifications,
+        was_modified: wasModified
+    };
 }
 
 // Actually save the annotation
@@ -1912,24 +2030,27 @@ async function performSave() {
     
     const gt = currentDialogue.ground_truth || {};
     
-    // Belief
+    // Belief - create plain and marked versions
     const editedBelief = addPrefix('belief', beliefInput.value || '');
     const originalBelief = gt.belief ? addPrefix('belief', gt.belief || '') : editedBelief;
-    beliefValue = (editedBelief !== originalBelief)
+    const beliefPlain = editedBelief; // Plain version (without edit markers)
+    const beliefMarked = (editedBelief !== originalBelief)
         ? markEditedSpan(originalBelief, editedBelief)
         : editedBelief;
     
-    // Desire
+    // Desire - create plain and marked versions
     const editedDesire = addPrefix('desire', desireInput.value || '');
     const originalDesire = gt.desire ? addPrefix('desire', gt.desire || '') : editedDesire;
-    desireValue = (editedDesire !== originalDesire)
+    const desirePlain = editedDesire; // Plain version (without edit markers)
+    const desireMarked = (editedDesire !== originalDesire)
         ? markEditedSpan(originalDesire, editedDesire)
         : editedDesire;
     
-    // Intention
+    // Intention - create plain and marked versions
     const editedIntention = addPrefix('intention', intentionInput.value || '');
     const originalIntention = gt.intention ? addPrefix('intention', gt.intention || '') : editedIntention;
-    intentionValue = (editedIntention !== originalIntention)
+    const intentionPlain = editedIntention; // Plain version (without edit markers)
+    const intentionMarked = (editedIntention !== originalIntention)
         ? markEditedSpan(originalIntention, editedIntention)
         : editedIntention;
     
@@ -1940,9 +2061,13 @@ async function performSave() {
         0
     );
     const bdiEditSpans =
-        countEditSpans(beliefValue) +
-        countEditSpans(desireValue) +
-        countEditSpans(intentionValue);
+        countEditSpans(beliefMarked) +
+        countEditSpans(desireMarked) +
+        countEditSpans(intentionMarked);
+    
+    // Calculate cognitive appraisal edit statistics
+    const appraisalEditStats = calculateAppraisalEditStats();
+    
     const totalEditSpans = utteranceEditSpans + bdiEditSpans;
     
     const annotation = {
@@ -1951,9 +2076,12 @@ async function performSave() {
         turns_viewed: currentTurnIndex,
         total_turns: currentDialogue.dialogue_history.length,
         min_context_turn: minContextTurnIndex,
-        belief: beliefValue,
-        desire: desireValue,
-        intention: intentionValue,
+        // Save plain versions (without edit markers) grouped under annotated_bdi
+        annotated_bdi: {
+            belief: beliefPlain,
+            desire: desirePlain,
+            intention: intentionPlain
+        },
         cognitive_appraisals: selectedAppraisals,
         // Include full dialogue snapshot using the FINAL (possibly edited) utterances
         dialogue_snapshot: currentDialogue.dialogue_history.map((turn, idx) => {
@@ -1968,12 +2096,30 @@ async function performSave() {
         modified_utterances: Object.fromEntries(
             Object.entries(modifiedUtterances).map(([k, v]) => [k, v.marked])
         ),
+        // Save BDI fields with marked edit spans
+        modified_bdi: {
+            belief: beliefMarked,
+            desire: desireMarked,
+            intention: intentionMarked
+        },
         // Edit statistics
         edit_stats: {
             edited_utterances: editedUtterancesCount,
             utterance_edit_spans: utteranceEditSpans,
             bdi_edit_spans: bdiEditSpans,
-            total_edit_spans: totalEditSpans
+            total_edit_spans: totalEditSpans,
+            // Cognitive appraisal edit statistics
+            appraisal_edits: {
+                original_count: appraisalEditStats.original_count,
+                final_count: appraisalEditStats.final_count,
+                added_count: appraisalEditStats.added_count,
+                removed_count: appraisalEditStats.removed_count,
+                added_appraisals: appraisalEditStats.added_appraisals,
+                removed_appraisals: appraisalEditStats.removed_appraisals,
+                order_changed: appraisalEditStats.order_changed,
+                total_modifications: appraisalEditStats.total_modifications,
+                was_modified: appraisalEditStats.was_modified
+            }
         },
         timestamp: new Date().toISOString()
     };
@@ -2001,6 +2147,25 @@ async function performSave() {
         // Build and show edit summary
         const bdiEdited = bdiEditSpans > 0;
         const appraisalsCount = selectedAppraisals.length;
+        const appraisalsModified = appraisalEditStats.was_modified;
+        
+        // Build appraisal edit summary
+        let appraisalEditSummary = '';
+        if (appraisalsModified) {
+            const editParts = [];
+            if (appraisalEditStats.added_count > 0) {
+                editParts.push(`+${appraisalEditStats.added_count} added`);
+            }
+            if (appraisalEditStats.removed_count > 0) {
+                editParts.push(`-${appraisalEditStats.removed_count} removed`);
+            }
+            if (appraisalEditStats.order_changed) {
+                editParts.push('reordered');
+            }
+            appraisalEditSummary = ` (${editParts.join(', ')})`;
+        } else {
+            appraisalEditSummary = ' (no changes)';
+        }
         
         const summaryHtml = [
             `<strong>✅ Annotation saved for ${currentDialogue.entry_id}</strong>`,
@@ -2009,7 +2174,7 @@ async function performSave() {
             `<span>• BDI edit spans: <strong>${bdiEditSpans}</strong></span>`,
             `<span>• Total edit spans (edits): <strong>${totalEditSpans}</strong></span>`,
             `<span>• BDI revised: <strong>${bdiEdited ? 'Yes' : 'No'}</strong></span>`,
-            `<span>• Appraisals selected: <strong>${appraisalsCount}</strong></span>`
+            `<span>• Appraisals selected: <strong>${appraisalsCount}</strong>${appraisalEditSummary}</span>`
         ].join('<br>');
         
         // Longer duration so user can read the statistics
