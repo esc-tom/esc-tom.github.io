@@ -457,6 +457,7 @@ async function initializeApp() {
     
     setupEventListeners();
     setupNotificationListeners();
+    setupInstructionListeners(); // Setup instruction modal listeners after login
     await checkAnnotationProgress();
     
     // Automatically load first unannotated dialogue or first dialogue
@@ -2785,41 +2786,73 @@ function markInstructionsAsSeen() {
     localStorage.setItem(STORAGE_KEYS.INSTRUCTIONS_SEEN, 'true');
 }
 
+// Store handler functions for instruction listeners to allow removal
+let instructionHandlers = {
+    showHandler: null,
+    closeHandler: null,
+    understoodHandler: null,
+    backdropHandler: null
+};
+
 function setupInstructionListeners() {
     // Show instruction button
     const showBtn = document.getElementById('show-instructions-btn');
     if (showBtn) {
-        showBtn.addEventListener('click', () => {
+        // Remove existing listener if any
+        if (instructionHandlers.showHandler) {
+            showBtn.removeEventListener('click', instructionHandlers.showHandler);
+        }
+        // Create and store new handler
+        instructionHandlers.showHandler = () => {
             showInstructionModal();
-        });
+        };
+        showBtn.addEventListener('click', instructionHandlers.showHandler);
     }
     
     // Close button
     const closeBtn = document.getElementById('close-instruction-modal');
     if (closeBtn) {
-        closeBtn.addEventListener('click', () => {
+        // Remove existing listener if any
+        if (instructionHandlers.closeHandler) {
+            closeBtn.removeEventListener('click', instructionHandlers.closeHandler);
+        }
+        // Create and store new handler
+        instructionHandlers.closeHandler = () => {
             hideInstructionModal();
-        });
+        };
+        closeBtn.addEventListener('click', instructionHandlers.closeHandler);
     }
     
     // Understood button
     const understoodBtn = document.getElementById('instruction-understood-btn');
     if (understoodBtn) {
-        understoodBtn.addEventListener('click', () => {
+        // Remove existing listener if any
+        if (instructionHandlers.understoodHandler) {
+            understoodBtn.removeEventListener('click', instructionHandlers.understoodHandler);
+        }
+        // Create and store new handler
+        instructionHandlers.understoodHandler = () => {
             markInstructionsAsSeen();
             hideInstructionModal();
-        });
+        };
+        understoodBtn.addEventListener('click', instructionHandlers.understoodHandler);
     }
     
     // Close on backdrop click
     const modal = document.getElementById('instruction-modal');
     if (modal) {
-        modal.addEventListener('click', (e) => {
+        // Remove existing listener if any
+        if (instructionHandlers.backdropHandler) {
+            modal.removeEventListener('click', instructionHandlers.backdropHandler);
+        }
+        // Create and store new handler
+        instructionHandlers.backdropHandler = (e) => {
             if (e.target === modal) {
                 markInstructionsAsSeen();
                 hideInstructionModal();
             }
-        });
+        };
+        modal.addEventListener('click', instructionHandlers.backdropHandler);
     }
 }
 
