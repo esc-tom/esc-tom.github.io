@@ -2829,7 +2829,6 @@ function updateUserBadge() {
         badge.innerHTML = `
             <span class="user-icon">👤</span>
             <span class="username-text">${currentUsername}</span>
-            <button class="logout-btn" onclick="handleLogout()">Logout</button>
         `;
     }
 }

@@ -627,7 +627,7 @@ header h1 {
     transition: opacity 0.2s;
 }
 
-.utterance:hover .edit-utterance-btn {
+.dialogue-turn:hover .edit-utterance-btn {
     opacity: 1;
 }
 
