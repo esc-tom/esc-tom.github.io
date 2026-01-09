@@ -42,6 +42,7 @@ let selectedAppraisals = [];
 let originalAppraisals = []; // Store original ground truth appraisals for comparison
 let minContextTurnIndex = null; // Tracks which turn provides minimum necessary context
 let modifiedUtterances = {}; // Track modified utterances { turnIndex: { plain, marked } }
+let annotatedIdList = []; // List of already annotated dialogue IDs from annotated_id_list.json
 const MAX_APPRAISALS = 5;
 const DIALOGUES_PER_USER = 10; // Number of dialogues to assign per user
 
@@ -74,6 +75,7 @@ async function init() {
     // Load dialogues first (needed for registration sampling)
     await loadDialogues();
     await loadCognitiveDimensions();
+    await loadAnnotatedIdList();
     
     // Check if this is a Prolific session
     isProlific = isProlificSession();
@@ -553,12 +555,20 @@ async function sampleDialogues(n, excludeIds = []) {
         // Get all already assigned dialogues to avoid duplicates
         const alreadyAssigned = await firebaseStorage.getAllAssignedDialogues();
         
-        // Filter out already assigned dialogues
-        const availableDialogues = allDialogues.filter(d => 
-            !alreadyAssigned.includes(d.entry_id) && !excludeIds.includes(d.entry_id)
-        );
+        // Filter out dialogues that are:
+        // 1. Already in the annotated_id_list.json
+        // 2. Already assigned to ongoing annotation tasks
+        // 3. In the excludeIds parameter
+        const availableDialogues = allDialogues.filter(d => {
+            const isAnnotated = isInAnnotatedList(d.entry_id);
+            const isAssigned = alreadyAssigned.includes(d.entry_id);
+            const isExcluded = excludeIds.includes(d.entry_id);
+            
+            return !isAnnotated && !isAssigned && !isExcluded;
+        });
         
-        console.log(`🎲 Sampling ${n} from ${availableDialogues.length} available dialogues (${alreadyAssigned.length} already assigned)`);
+        const annotatedCount = allDialogues.filter(d => isInAnnotatedList(d.entry_id)).length;
+        console.log(`🎲 Sampling ${n} from ${availableDialogues.length} available dialogues (${alreadyAssigned.length} already assigned, ${annotatedCount} in annotated list)`);
         
         if (availableDialogues.length < n) {
             console.warn(`⚠️ Only ${availableDialogues.length} dialogues available, requested ${n}`);
@@ -589,6 +599,43 @@ async function loadCognitiveDimensions() {
         console.error('Error loading cognitive dimensions:', error);
         showStatus('Error loading cognitive dimensions', 'error');
     }
+}
+
+// Load annotated ID list from JSON file
+async function loadAnnotatedIdList() {
+    try {
+        const response = await fetch('data/annotated_id_list.json');
+        annotatedIdList = await response.json();
+        console.log(`📋 Loaded ${annotatedIdList.length} annotated IDs from annotated_id_list.json`);
+    } catch (error) {
+        console.error('Error loading annotated ID list:', error);
+        // Don't show error to user - just log it, as this is optional
+        annotatedIdList = [];
+    }
+}
+
+// Check if a dialogue ID is in the annotated list
+// Handles both exact matches and IDs with "||" suffix
+function isInAnnotatedList(entryId) {
+    if (!annotatedIdList || annotatedIdList.length === 0) {
+        return false;
+    }
+    
+    // Check for exact match
+    if (annotatedIdList.includes(entryId)) {
+        return true;
+    }
+    
+    // Check if entryId matches the base part (before "||") of any annotated ID
+    for (const annotatedId of annotatedIdList) {
+        // Extract base ID (before "||" if present)
+        const baseId = annotatedId.split('||')[0];
+        if (baseId === entryId || annotatedId === entryId) {
+            return true;
+        }
+    }
+    
+    return false;
 }
 
 // Check annotation progress
