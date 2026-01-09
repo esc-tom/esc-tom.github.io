@@ -468,12 +468,10 @@ async function initializeApp() {
         await handleDialogueChange();
     }
     
-    // Show instructions on first login
-    if (!hasSeenInstructions()) {
-        setTimeout(() => {
-            showInstructionModal();
-        }, 500); // Small delay to ensure UI is ready
-    }
+    // Always show instructions when user logs in
+    setTimeout(() => {
+        showInstructionModal();
+    }, 500); // Small delay to ensure UI is ready
 }
 
 // Load all dialogues from JSON file
