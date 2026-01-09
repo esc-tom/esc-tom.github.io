@@ -1186,7 +1186,7 @@ function updateDialogueInfo() {
     const status = isAnnotated ? '✓ Annotated' : '○ Not annotated';
     
     dialogueInfo.innerHTML = `
-        <span class="dialogue-id">${currentDialogue.entry_id}</span>
+        <span class="dialogue-id">Dialogue ID: ${currentDialogue.entry_id}</span>
         <span class="dialogue-stats">${totalTurnPairs} turn pairs</span>
         <span class="dialogue-status ${isAnnotated ? 'annotated' : 'pending'}">${status}</span>
     `;

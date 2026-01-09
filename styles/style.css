@@ -1752,10 +1752,20 @@ header h1 {
     align-items: center;
     gap: 8px;
     padding: 8px 16px;
+    min-height: 36px; /* Match instruction button height */
+    line-height: 1.2;
     background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
     border: 2px solid #3b82f6;
     border-radius: var(--radius-xl);
-    margin-right: 20px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+}
+
+.user-badge:hover {
+    background: linear-gradient(135deg, #bfdbfe 0%, #93c5fd 100%);
+    border-color: #2563eb;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
 }
 
 .user-icon {
@@ -2011,6 +2021,101 @@ header h1 {
     display: flex;
     align-items: center;
     gap: 12px;
+}
+
+/* Glowing animation for instruction button */
+@keyframes glow-pulse {
+    0%, 100% {
+        box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4),
+                    0 0 10px rgba(245, 158, 11, 0.3),
+                    0 0 16px rgba(245, 158, 11, 0.25),
+                    0 0 22px rgba(245, 158, 11, 0.2),
+                    inset 0 0 10px rgba(255, 237, 213, 0.3);
+        border-color: #f59e0b;
+    }
+    50% {
+        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.6),
+                    0 0 14px rgba(245, 158, 11, 0.5),
+                    0 0 20px rgba(245, 158, 11, 0.4),
+                    0 0 28px rgba(245, 158, 11, 0.35),
+                    inset 0 0 15px rgba(255, 237, 213, 0.5);
+        border-color: #fbbf24;
+    }
+}
+
+/* Enhanced glow animation for hover state */
+@keyframes glow-pulse-hover {
+    0%, 100% {
+        box-shadow: 0 2px 8px rgba(245, 158, 11, 0.6),
+                    0 0 12px rgba(245, 158, 11, 0.5),
+                    0 0 18px rgba(245, 158, 11, 0.4),
+                    0 0 24px rgba(245, 158, 11, 0.35),
+                    inset 0 0 20px rgba(255, 237, 213, 0.6);
+        border-color: #fbbf24;
+    }
+    50% {
+        box-shadow: 0 2px 10px rgba(245, 158, 11, 0.7),
+                    0 0 16px rgba(245, 158, 11, 0.6),
+                    0 0 24px rgba(245, 158, 11, 0.5),
+                    0 0 32px rgba(245, 158, 11, 0.45),
+                    inset 0 0 25px rgba(255, 237, 213, 0.7);
+        border-color: #fcd34d;
+    }
+}
+
+/* Instruction Button - Matches User Badge Style */
+#show-instructions-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    min-height: 36px; /* Match user badge height */
+    line-height: 1.2;
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border: 2px solid #f59e0b;
+    border-radius: var(--radius-xl);
+    color: #92400e;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    margin-right: 0;
+    position: relative;
+    animation: glow-pulse 2.5s ease-in-out infinite;
+    isolation: isolate; /* Create new stacking context */
+}
+
+#show-instructions-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: var(--radius-xl);
+    background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(251, 191, 36, 0.2));
+    opacity: 0;
+    z-index: -1;
+    transition: opacity 0.3s ease;
+    filter: blur(4px);
+    pointer-events: none;
+}
+
+#show-instructions-btn:hover {
+    background: linear-gradient(135deg, #fde68a 0%, #fcd34d 100%);
+    color: #78350f;
+    transform: translateY(-2px) scale(1.02);
+    animation: glow-pulse-hover 1.2s ease-in-out infinite;
+}
+
+#show-instructions-btn:hover::before {
+    opacity: 0.6;
+    filter: blur(5px);
+}
+
+#show-instructions-btn:active {
+    transform: translateY(0) scale(0.98);
+    animation: glow-pulse-hover 0.6s ease-in-out infinite;
 }
 
 .btn-small {
@@ -2423,6 +2528,26 @@ header h1 {
 
     .header-actions {
         flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    #show-instructions-btn {
+        padding: 6px 12px;
+        font-size: 14px;
+        min-height: 32px;
+    }
+    
+    .user-badge {
+        padding: 6px 12px;
+        min-height: 32px;
+    }
+    
+    .username-text {
+        font-size: 14px;
+    }
+    
+    .user-icon {
+        font-size: 16px;
     }
 }
 
