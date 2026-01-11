@@ -2762,15 +2762,68 @@ async function populateInstructionAppraisals() {
 
 function showInstructionModal() {
     const modal = document.getElementById('instruction-modal');
+    const modalBody = modal.querySelector('.instruction-body');
+    const understoodBtn = document.getElementById('instruction-understood-btn');
+    
     modal.classList.add('show');
     // Prevent body scroll when modal is open
     document.body.style.overflow = 'hidden';
     // Populate appraisal dimensions dynamically
     populateInstructionAppraisals();
+    
+    // Disable the button initially
+    if (understoodBtn) {
+        understoodBtn.disabled = true;
+        understoodBtn.style.opacity = '0.5';
+        understoodBtn.style.cursor = 'not-allowed';
+    }
+    
+    // Set up scroll detection
+    if (modalBody) {
+        // Remove any existing scroll handler first
+        if (modalBody._scrollHandler) {
+            modalBody.removeEventListener('scroll', modalBody._scrollHandler);
+        }
+        
+        const checkScroll = () => {
+            // Check if user has scrolled to the bottom (with 10px threshold for rounding)
+            const isAtBottom = modalBody.scrollHeight - modalBody.scrollTop <= modalBody.clientHeight + 10;
+            
+            if (understoodBtn) {
+                if (isAtBottom) {
+                    understoodBtn.disabled = false;
+                    understoodBtn.style.opacity = '1';
+                    understoodBtn.style.cursor = 'pointer';
+                } else {
+                    understoodBtn.disabled = true;
+                    understoodBtn.style.opacity = '0.5';
+                    understoodBtn.style.cursor = 'not-allowed';
+                }
+            }
+        };
+        
+        // Check initial state (in case content is already fully visible)
+        // Use setTimeout to ensure DOM is fully rendered
+        setTimeout(() => {
+            checkScroll();
+        }, 100);
+        
+        // Store scroll handler for cleanup
+        modalBody._scrollHandler = checkScroll;
+        modalBody.addEventListener('scroll', checkScroll);
+    }
 }
 
 function hideInstructionModal() {
     const modal = document.getElementById('instruction-modal');
+    const modalBody = modal.querySelector('.instruction-body');
+    
+    // Remove scroll handler if it exists
+    if (modalBody && modalBody._scrollHandler) {
+        modalBody.removeEventListener('scroll', modalBody._scrollHandler);
+        delete modalBody._scrollHandler;
+    }
+    
     modal.classList.remove('show');
     // Restore body scroll
     document.body.style.overflow = '';
@@ -2830,6 +2883,10 @@ function setupInstructionListeners() {
         }
         // Create and store new handler
         instructionHandlers.understoodHandler = () => {
+            // Prevent action if button is disabled
+            if (understoodBtn.disabled) {
+                return;
+            }
             markInstructionsAsSeen();
             hideInstructionModal();
         };
