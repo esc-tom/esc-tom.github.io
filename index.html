@@ -180,15 +180,19 @@
                     <div class="instructions-content">
                         <div class="instruction-step">
                             <span class="step-number">1</span>
-                            <span class="step-text">Review the dialogue. <strong>Click "Edit" on any utterance</strong> to modify weird/unclear content.</span>
-                        </div>
-                        <div class="instruction-step">
-                            <span class="step-number">2</span>
                             <span class="step-text"><strong>Click on the turn</strong> that provided the minimum necessary context for your annotation.</span>
                         </div>
                         <div class="instruction-step">
+                            <span class="step-number">2</span>
+                            <span class="step-text"><strong>Revise the AI-generated BDI</strong> (Belief, Desire, Intention) on the right. <span style="color: #d9534f; font-weight: bold;">CORE TASK</span></span>
+                        </div>
+                        <div class="instruction-step">
                             <span class="step-number">3</span>
-                            <span class="step-text"><strong>Revise the AI-generated</strong> BDI and cognitive appraisals on the right (pre-filled for you).</span>
+                            <span class="step-text"><strong>Revise the AI-generated cognitive appraisals</strong> on the right. <span style="color: #d9534f; font-weight: bold;">CORE TASK</span></span>
+                        </div>
+                        <div class="instruction-step" style="opacity: 0.7;">
+                            <span class="step-number" style="background: #f59e0b; border-radius: 12px; min-width: auto; width: auto; padding: 0 10px; font-size: 12px;">Optional</span>
+                            <span class="step-text">Only <strong>edit utterances</strong> if content is extremely wrong (e.g., physically impossible scenarios).</span>
                         </div>
                         <div class="instruction-step">
                             <span class="step-number">4</span>
@@ -375,37 +379,36 @@
             <div class="modal-body instruction-body">
                 <div class="instruction-section">
                     <h3>Overview & Goal</h3>
-                    <p>Welcome! In this study, you will review AI-generated therapeutic dialogue transcripts and revise the pre-filled annotations regarding the patient's mental state. <strong>Please read the instructions carefully before starting.</strong></p>
+                    <p>Welcome! In this study, you will review AI-generated therapeutic dialogue transcripts and <strong>revise the pre-filled BDI (Belief, Desire, Intention) and cognitive appraisals</strong> based on the dialogue content. <strong>Your core tasks are to revise the BDI and cognitive appraisals.</strong> Dialogue editing is optional and only needed when the content is extremely wrong. <strong>Please read the instructions carefully before starting.</strong></p>
                 </div>
 
                 <div class="instruction-section">
                     <h3>Key Concepts:</h3>
                     <ul class="instruction-list">
-                        <li><strong>BDI (Belief, Desire, Intention):</strong> The patient's mental state <strong>before the bothering event occurred.</strong></li>
+                        <li><strong>Therapeutic Dialogues:</strong> Dialogue between a therapist and a patient centered around a <strong>bothering event</strong> that the patient recently experienced.</li>
+                        <li><strong>Belief, Desire, Intention (BDI):</strong> The patient's mental state <strong>before the bothering event occurred.</strong>
+
+                            <ul style="margin-left: 2em; padding-left: 1.5em; margin-top: 0.5em; margin-bottom: 0.5em;">
+                                <li style="margin-bottom: 0.3em;"><strong>Belief:</strong> What the patient thought was true before the bothering event occurred.</li>
+                                <li style="margin-bottom: 0.3em;"><strong>Desire:</strong> What the patient wanted to achieve before the bothering event occurred.</li>
+                                <li style="margin-bottom: 0.3em;"><strong>Intention:</strong> What the patient planned to do before the bothering event occurred.</li>
+                            </ul>
+                        </li>
                         <li><strong>Cognitive Appraisals:</strong> How the patient subjectively evaluates their situation <strong>after the bothering event occurred.</strong>. There will be 14 cognitive appraisal dimensions which are defined in the later part of the instructions.</li>
-                        <li><strong>Minimum Context Turn:</strong> The earliest turn of the dialogue where there is enough information to accurately deduce the patient's mental state (incl. both BDI and cognitive appraisals).</li>
+                        <li><strong>Minimum Context Turn:</strong> The earliest turn of the dialogue where there is enough information to accurately deduce the patient's mental state (incl. both BDI and cognitive appraisals). <em>Note: Up to 12 turns are displayed, which is typically sufficient for this task.</em></li>
                     </ul>
+                    <p style="background: #e7f3ff; padding: 10px; border-left: 4px solid #2196F3; border-radius: 4px; margin-top: 10px;">
+                        <strong>Note:</strong> Up to 12 turns of dialogue are displayed and are sufficient for understanding the bothering event and revising the pre-event BDI and post-event appraisals. Additional turns beyond the 12th are omitted for clarity.
+                    </p>
                 </div>
 
                 <div class="instruction-section">
                     <h3>Workflow Summary</h3>
-                    <p>For every dialogue, please complete the following four tasks in this exact order:</p>
-                    
+                    <p><strong>Core Tasks (Required):</strong> For every dialogue, please complete the following tasks. The main focus is on revising BDI and cognitive appraisals.</p>
                     <div class="workflow-tasks">
                         <div class="workflow-task">
                             <div class="workflow-task-header">
                                 <span class="workflow-number">1</span>
-                                <strong>Read & Edit Utterances</strong>
-                            </div>
-                            <p class="workflow-description">Fix weird or implausible content in the utterances.</p>
-                            <div class="workflow-howto">
-                                <strong>How to Edit:</strong> Hover over the utterance and click "Edit". Modify the text and click "Save". (The text will show a yellow highlight and an (edited) marker).
-                            </div>
-                        </div>
-
-                        <div class="workflow-task">
-                            <div class="workflow-task-header">
-                                <span class="workflow-number">2</span>
                                 <strong>Mark Minimum Context Turn</strong>
                             </div>
                             <p class="workflow-description">Identify the earliest turn of the dialogue where there is enough information to accurately deduce the patient's mental state (incl. both BDI and cognitive appraisals).</p>
@@ -416,8 +419,8 @@
 
                         <div class="workflow-task">
                             <div class="workflow-task-header">
-                                <span class="workflow-number">3</span>
-                                <strong>Revise BDI</strong>
+                                <span class="workflow-number">2</span>
+                                <strong>Revise BDI</strong> <span style="color: #d9534f; font-size: 0.9em;">(CORE TASK)</span>
                             </div>
                             <p class="workflow-description">Ensure the pre-event Belief, Desire, and Intention accurately reflect the patient's state before the bothering event occurred.</p>
                             <div class="workflow-howto">
@@ -427,12 +430,23 @@
 
                         <div class="workflow-task">
                             <div class="workflow-task-header">
-                                <span class="workflow-number">4</span>
-                                <strong>Revise Appraisals</strong>
+                                <span class="workflow-number">3</span>
+                                <strong>Revise Appraisals</strong> <span style="color: #d9534f; font-size: 0.9em;">(CORE TASK)</span>
                             </div>
                             <p class="workflow-description">Select the top 5 appraisal dimensions that describe how the patient evaluates the situation <strong>after the bothering event occurred.</strong></p>
                             <div class="workflow-howto">
                                 <strong>How to Edit:</strong> Remove the appraisal dimensions that are not salient in the given situation and add the ones that are. You can also drag and drop the appraisal dimensions to reorder them by importance.
+                            </div>
+                        </div>
+
+                        <div class="workflow-task" style="opacity: 0.8; border-left: 3px solid #f59e0b;">
+                            <div class="workflow-task-header">
+                                <span class="workflow-number" style="background: #f59e0b; border-radius: 12px; width: auto; min-width: auto; padding: 0 12px; font-size: 14px;">Optional</span>
+                                <strong>Edit Utterances</strong> <span style="color: #f59e0b; font-size: 0.9em;">(Only if extremely wrong)</span>
+                            </div>
+                            <p class="workflow-description">Only edit dialogue utterances if the content is <strong>extremely wrong</strong> (e.g., physically impossible scenarios, direct contradictions, or garbled text that destroys meaning).</p>
+                            <div class="workflow-howto">
+                                <strong>How to Edit:</strong> Hover over the utterance and click "Edit". Modify the text and click "Save". (The text will show a yellow highlight and an (edited) marker).
                             </div>
                         </div>
                     </div>
@@ -440,45 +454,7 @@
 
 
                 <div class="instruction-section">
-                    <h3>Task 1: Edit Utterances</h3>
-                    <p><strong>Goal:</strong> Fix logic errors and garbled text. <span style="text-decoration: underline;">Do not rewrite style.</span></p>
-                    
-                    <table class="instruction-table" style="width: 100%; border-collapse: collapse; margin-bottom: 1rem;">
-                        <thead>
-                            <tr style="text-align: left; background: #f4f4f4;">
-                                <th style="padding: 8px;">❌ DO NOT EDIT</th>
-                                <th style="padding: 8px;">✅ DO EDIT</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td style="padding: 8px; vertical-align: top;">
-                                    <ul style="margin: 0; padding-left: 20px;">
-                                        <li>Natural slang or pauses.</li>
-                                        <li>Minor stylistic preferences.</li>
-                                        <li>Grammatically correct sentences.</li>
-                                    </ul>
-                                </td>
-                                <td style="padding: 8px; vertical-align: top;">
-                                    <ul style="margin: 0; padding-left: 20px;">
-                                        <li><strong>Implausible Events:</strong> Physically impossible scenarios.</li>
-                                        <li><strong>Nonsense:</strong> Direct contradictions.</li>
-                                        <li><strong>Garbled Text:</strong> Typos that destroy meaning.</li>
-                                    </ul>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-            
-                    <div class="instruction-example" style="background: #f9f9f9; padding: 10px; border-left: 4px solid #ccc;">
-                        <strong>Example Utterance:</strong> "I saw my son getting bullied at school while I was in a meeting with my boss."<br>
-                        <strong>Issue:</strong> Physically impossible to see the school while in an office meeting.<br>
-                        <strong>Fix:</strong> "I <strong>was informed</strong> that my son was bullied at school while I was in a meeting with my boss."
-                    </div>
-                </div>
-            
-                <div class="instruction-section">
-                    <h3>Task 2: Mark Minimum Context Turn</h3>
+                    <h3>Task 1: Mark Minimum Context Turn</h3>
                     <p><strong>Goal:</strong> Select the <strong>earliest</strong> turn pair that reveals the patient's mental state.</p>
                     <ol class="instruction-list">
                         <li>Read from the start.</li>
@@ -488,10 +464,13 @@
                     <p class="instruction-note" style="color: #d9534f; background: #fdf7f7; padding: 8px; border: 1px solid #d9534f; border-radius: 4px;">
                         <strong>CRITICAL:</strong> Select the <strong>minimum</strong> context. If the patient's pre-event BDI and post-event appraisals can be deduced using dialogues up to turn 4, mark it as the minimum context turn.
                     </p>
+                    <p style="background: #e7f3ff; padding: 8px; border-left: 4px solid #2196F3; border-radius: 4px; margin-top: 10px;">
+                        <strong>Note:</strong> Up to 12 turns of dialogue are displayed, which is typically sufficient for understanding the bothering event and revising the pre-event BDI and post-event appraisals. If the dialogue has more than 12 turns, the remaining turns are omitted.
+                    </p>
                 </div>
             
                 <div class="instruction-section">
-                    <h3>Task 3: Revise Patient's BDI</h3>
+                    <h3>Task 2: Revise Patient's BDI <span style="color: #d9534f;">(CORE TASK)</span></h3>
                     <p><strong>Goal:</strong> Revise the patient's pre-event mental state. <strong>Ensure the annotations reflect the patient's belief, desire, and intention right before the event not after the event occurred.</strong></p>
                     <p><strong>Logic:</strong> Negative emotions are often triggered when an event conflicts with a person’s Beliefs, Desires, and Intentions (BDI).</p>
                     <p><strong>Instruction:</strong> Revise the patient's BDI to ensure it logically explains their interpretation of the event (i.e., establish a causal link between their beliefs and their cognitive appraisal).</p>
@@ -525,7 +504,7 @@
                 </div>
             
                 <div class="instruction-section">
-                    <h3>Task 4: Revise Appraisals</h3>
+                    <h3>Task 3: Revise Appraisals <span style="color: #d9534f;">(CORE TASK)</span></h3>
                     <p><strong>Goal:</strong> Select the <strong>Top 5</strong> dimensions based on evidence.</p>
                     
                     <ul class="instruction-list">
@@ -534,29 +513,49 @@
                     </ul>
             
                     <p><strong>Available Appraisal Dimensions:</strong></p>
-                    <table id="instruction-appraisals-table" class="instruction-appraisals-table">
-                        <thead>
-                            <tr>
-                                <th>Dimension</th>
-                                <th>Definition</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Appraisal dimensions will be populated dynamically from cognitive_dimensions.json -->
-                        </tbody>
-                    </table>
+                    <div class="instruction-appraisals-table-wrapper">
+                        <table id="instruction-appraisals-table" class="instruction-appraisals-table">
+                            <thead>
+                                <tr>
+                                    <th>Dimension</th>
+                                    <th>Definition</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Appraisal dimensions will be populated dynamically from cognitive_dimensions.json -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
-
+                <div class="instruction-section optional-section">
+                    <h3>Optional: Edit Utterances (Only if Extremely Wrong)</h3>
+                    <p><strong>Note:</strong> Dialogue editing is <strong>optional</strong> and should only be done when the content is <strong>extremely wrong</strong>. Your main focus should be on revising BDI and cognitive appraisals.</p>
+                    <p><strong>When to Edit:</strong> Only fix content that is:</p>
+                    <ul class="instruction-list">
+                        <li><strong>Physically impossible scenarios</strong> (e.g., seeing something that cannot be seen from the current location)</li>
+                        <li><strong>Direct contradictions</strong> that make the dialogue nonsensical</li>
+                        <li><strong>Garbled text</strong> that destroys meaning (not minor typos)</li>
+                    </ul>
+                    <p><strong>Do NOT edit:</strong> Natural slang, pauses, minor stylistic preferences, or grammatically correct sentences.</p>
+                    <div class="instruction-example" style="background: #f9f9f9; padding: 10px; border-left: 4px solid #ccc; margin-top: 10px;">
+                        <strong>Example Utterance:</strong> "I saw my son getting bullied at school while I was in a meeting with my boss."<br>
+                        <strong>Issue:</strong> Physically impossible to see the school while in an office meeting.<br>
+                        <strong>Fix:</strong> "I <strong>was informed</strong> that my son was bullied at school while I was in a meeting with my boss."
+                    </div>
+                    <div class="workflow-howto-no-margin">
+                        <strong>How to Edit:</strong> Hover over the utterance and click "Edit". Modify the text and click "Save". (The text will show a yellow highlight and an (edited) marker).
+                    </div>
+                </div>
 
                 <div class="instruction-section">
                     <h3>Quality Checklist</h3>
                     <p>Before clicking "Save Annotation," ask yourself:</p>
                     <ul class="instruction-checklist">
-                        <li><strong>Is the Text Clean?</strong><br>Did I fix any impossible or garbled sentences?</li>
+                        <li><strong>Is the BDI Pre-Event?</strong><br>Do the Beliefs and Desires describe how they felt before the issue started? <span style="color: #d9534f;">(CORE TASK)</span></li>
+                        <li><strong>Are Appraisals Supported?</strong><br>Do the 5 selected dimensions match the patient's specific words? <span style="color: #d9534f;">(CORE TASK)</span></li>
                         <li><strong>Is the Context Precise?</strong><br>Is the green checkmark on the earliest possible turn?</li>
-                        <li><strong>Is the BDI Pre-Event?</strong><br>Do the Beliefs and Desires describe how they felt before the issue started?</li>
-                        <li><strong>Are Appraisals Supported?</strong><br>Do the 5 selected dimensions match the patient's specific words?</li>
+                        <li><strong>Is the Text Clean?</strong><br>Did I fix any extremely wrong content (only if necessary)?</li>
                     </ul>
                 </div>
 
@@ -568,7 +567,7 @@
                     </div>
                     <div class="faq-item">
                         <p><strong>How long should this take?</strong></p>
-                        <p>Roughly 3-5 minutes per dialogue.</p>
+                        <p>Roughly 3-5 minutes per dialogue. You don't need to edit the dialogue content unless it is extremely wrong.</p>
                     </div>
                     <div class="faq-item">
                         <p><strong>What if I accidentally closed the annotation website?</strong></p>

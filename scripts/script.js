@@ -999,9 +999,13 @@ function showExplorationTurns() {
     
     dialogueContainer.innerHTML = '';
     let turnPairIndex = 0;
+    const MAX_TURNS_TO_DISPLAY = 24; // Display up to 12th turn
     
-    // Iterate through dialogue history in pairs
-    for (let i = 0; i < currentDialogue.dialogue_history.length; i += 2) {
+    // Iterate through dialogue history in pairs, but limit to first 12 turns
+    const totalTurns = currentDialogue.dialogue_history.length;
+    const maxIndex = Math.min(totalTurns, MAX_TURNS_TO_DISPLAY);
+    
+    for (let i = 0; i < maxIndex; i += 2) {
         const turn1 = currentDialogue.dialogue_history[i];
         const turn2 = currentDialogue.dialogue_history[i + 1];
         
@@ -1014,12 +1018,22 @@ function showExplorationTurns() {
         }
     }
     
+    // Add ellipsis message if there are more turns beyond the 12th
+    if (totalTurns > MAX_TURNS_TO_DISPLAY) {
+        const omittedTurns = totalTurns - MAX_TURNS_TO_DISPLAY;
+        const ellipsisDiv = document.createElement('div');
+        ellipsisDiv.className = 'dialogue-ellipsis';
+        ellipsisDiv.style.cssText = 'text-align: center; padding: 20px; color: #6b7280; font-style: italic; border-top: 2px dashed #e5e7eb; margin-top: 10px;';
+        ellipsisDiv.textContent = `... (${omittedTurns} more turn${omittedTurns > 1 ? 's' : ''} omitted)`;
+        dialogueContainer.appendChild(ellipsisDiv);
+    }
+    
     if (turnPairIndex === 0) {
         dialogueContainer.innerHTML = '<p class="placeholder">No turns found in this dialogue.</p>';
     } else {
         // Scroll to top to show first turn
         dialogueContainer.scrollTop = 0;
-        console.log(`Showing ${turnPairIndex} turn pairs`);
+        console.log(`Showing ${turnPairIndex} turn pairs (${totalTurns > MAX_TURNS_TO_DISPLAY ? `first ${MAX_TURNS_TO_DISPLAY} of ${totalTurns}` : 'all'} turns)`);
     }
 }
 
@@ -1894,6 +1908,41 @@ async function saveAnnotation() {
         showStatus('Please select the minimum context turn before saving your annotation.', 'error');
         setTimeout(() => hideStatus(), 3000);
         return;
+    }
+    
+    // Check if BDI or cognitive appraisals have been modified
+    const gt = currentDialogue.ground_truth || {};
+    
+    // Check BDI modifications (compare stripped values since inputs store values without prefixes)
+    const currentBelief = (beliefInput.value || '').trim();
+    const originalBelief = stripPrefix('belief', gt.belief || '');
+    const beliefModified = currentBelief !== originalBelief;
+    
+    const currentDesire = (desireInput.value || '').trim();
+    const originalDesire = stripPrefix('desire', gt.desire || '');
+    const desireModified = currentDesire !== originalDesire;
+    
+    const currentIntention = (intentionInput.value || '').trim();
+    const originalIntention = stripPrefix('intention', gt.intention || '');
+    const intentionModified = currentIntention !== originalIntention;
+    
+    const bdiModified = beliefModified || desireModified || intentionModified;
+    
+    // Check cognitive appraisal modifications
+    const appraisalEditStats = calculateAppraisalEditStats();
+    const appraisalsModified = appraisalEditStats.was_modified;
+    
+    // Warn if neither BDI nor appraisals have been modified
+    if (!bdiModified && !appraisalsModified) {
+        const proceed = confirm(
+            '⚠️ Warning: You have not made any modifications to the BDI or cognitive appraisal dimensions.\n\n' +
+            'Submitting too many data points without modifications may result in rejection of your annotation.\n\n' +
+            'Do you want to proceed with saving anyway?'
+        );
+        
+        if (!proceed) {
+            return; // User cancelled, don't proceed with save
+        }
     }
     
     // Show confirmation modal

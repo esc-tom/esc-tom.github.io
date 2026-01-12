@@ -2178,6 +2178,21 @@ header h1 {
     margin-bottom: 0;
 }
 
+.instruction-section.optional-section {
+    background: linear-gradient(135deg, #fffbf0 0%, #fff8e1 100%);
+    border-left: 4px solid #f59e0b;
+    border-radius: var(--radius-md);
+    padding: 24px 24px 24px 28px;
+    margin: 24px 0;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1), inset 0 0 0 1px rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.instruction-section.optional-section h3 {
+    color: #f59e0b;
+    border-bottom-color: rgba(245, 158, 11, 0.3);
+}
+
 .instruction-section h3 {
     color: var(--primary-color);
     font-size: 24px;
@@ -2286,6 +2301,16 @@ header h1 {
     color: var(--text-primary);
 }
 
+.workflow-howto-no-margin {
+    padding: 12px 16px;
+    background: #f8f9fa;
+    border-radius: var(--radius-sm);
+    border-left: 3px solid #6c757d;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text-primary);
+}
+
 .workflow-howto strong {
     color: #495057;
     font-size: 17px;
@@ -2333,14 +2358,26 @@ header h1 {
     margin-bottom: 0;
 }
 
+.instruction-appraisals-table-wrapper {
+    border: 2px solid #e5e7eb;
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    display: inline-block;
+    width: 100%;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(99, 102, 241, 0.1);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+    padding: 2px;
+}
+
 .instruction-appraisals-table {
     width: 100%;
     border-collapse: collapse;
-    margin: 20px 0;
+    margin: 0;
     background: white;
-    border-radius: var(--radius-md);
+    border-radius: calc(var(--radius-md) - 2px);
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    box-shadow: none;
+    border: none;
 }
 
 .instruction-appraisals-table thead {
@@ -2354,15 +2391,17 @@ header h1 {
     font-size: 18px;
     font-weight: 700;
     letter-spacing: 0.3px;
+    border-bottom: 3px solid #4b5563;
 }
 
 .instruction-appraisals-table th:first-child {
     width: 35%;
     min-width: 200px;
+    border-right: 2px solid rgba(255, 255, 255, 0.4);
 }
 
 .instruction-appraisals-table tbody tr {
-    border-bottom: 1px solid #e5e7eb;
+    border-bottom: 2px solid #9ca3af;
     transition: background-color 0.2s ease;
 }
 
@@ -2379,6 +2418,11 @@ header h1 {
     font-size: 16px;
     line-height: 1.6;
     vertical-align: top;
+    border-right: 2px solid #d1d5db;
+}
+
+.instruction-appraisals-table td:last-child {
+    border-right: none;
 }
 
 .instruction-appraisals-table .dimension-name {
