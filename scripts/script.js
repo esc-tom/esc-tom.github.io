@@ -3345,8 +3345,8 @@ function setupFeedbackListeners() {
     
     // Function to update submit button state based on validation
     function updateSubmitButtonState() {
-        const comments = commentsTextarea.value.trim();
-        const isValid = feedbackRating > 0 && comments.length > 0;
+        // Only rating is required, comments are optional
+        const isValid = feedbackRating > 0;
         
         if (isValid) {
             submitBtn.disabled = false;
@@ -3460,25 +3460,19 @@ async function handleFeedbackSubmit() {
     const comments = document.getElementById('feedback-comments').value.trim();
     const errorDiv = document.getElementById('feedback-error');
     
-    // Validate - BOTH rating AND comments are required
+    // Validate - Only rating is required, comments are optional
     if (feedbackRating === 0) {
         errorDiv.textContent = 'Please provide a star rating (1-5 stars)';
         errorDiv.classList.remove('hidden');
         return;
     }
     
-    if (!comments || comments.length === 0) {
-        errorDiv.textContent = 'Please provide feedback comments in the text box';
-        errorDiv.classList.remove('hidden');
-        return;
-    }
-    
-    // Both are provided, proceed with submission
+    // Rating is provided, proceed with submission (comments are optional)
     try {
         // Save feedback to Firebase
         const success = await firebaseStorage.saveFeedback({
             rating: feedbackRating,
-            comments: comments
+            comments: comments || '' // Allow empty comments
         });
         
         if (success) {
