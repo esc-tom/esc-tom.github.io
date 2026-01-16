@@ -7,9 +7,26 @@ service cloud.firestore {
       return request.auth != null;
     }
     
-    // Helper function to check if user is accessing their own data
+    // Helper function to check if user is accessing their own data (for read/update/delete)
+    // Supports both new custom ID system (checks authUid field) and old system (userId == auth.uid)
     function isOwner(userId) {
-      return isAuthenticated() && request.auth.uid == userId;
+      return isAuthenticated() && (
+        // New system: document's authUid field matches authenticated user
+        (resource.data.authUid != null && resource.data.authUid == request.auth.uid) ||
+        // Backward compatibility: userId matches auth.uid (old system)
+        (userId == request.auth.uid)
+      );
+    }
+    
+    // Helper function to check if user can create/update their own document
+    // For create/update operations, check the request.resource.data
+    function canWriteOwnDocument(userId) {
+      return isAuthenticated() && (
+        // New system: request contains authUid that matches authenticated user
+        (request.resource.data.authUid != null && request.resource.data.authUid == request.auth.uid) ||
+        // Backward compatibility: userId matches auth.uid (old system)
+        (userId == request.auth.uid)
+      );
     }
     
     // ============================================
@@ -27,18 +44,20 @@ service cloud.firestore {
       // Allow users to create their own profile (during registration)
       // Also allows ensureUserDocumentExists to create missing profiles
       // Note: set() with merge uses update permission, but we allow create for safety
-      allow create: if isAuthenticated() 
-                    && request.auth.uid == userId
+      // Supports custom ID system: checks if authUid in request matches authenticated user
+      allow create: if canWriteOwnDocument(userId)
                     && request.resource.data.username is string
                     && request.resource.data.email is string;
       
       // Allow users to update their own profile
       // Allows updates for: feedback, prolific data, lastActiveAt, assignedDialogues, etc.
-      allow update: if isOwner(userId);
+      // Supports both new custom ID system and backward compatibility
+      allow update: if canWriteOwnDocument(userId) || isOwner(userId);
       
       // Allow users to write their own profile (for set operations with merge)
       // Needed for: registration, profile recreation, ensureUserDocumentExists
-      allow write: if isOwner(userId);
+      // Supports both new custom ID system and backward compatibility
+      allow write: if canWriteOwnDocument(userId) || isOwner(userId);
       
       // Allow queries on users collection
       // Needed for: getAllUsers(), getProlificUserByParticipantId(), getUsernameStatus()
@@ -49,25 +68,40 @@ service cloud.firestore {
       // ANNOTATIONS SUBCOLLECTION
       // ============================================
       match /annotations/{annotationId} {
+        // Helper to check if user owns the parent user document
+        // Supports both new custom ID system and old Auth UID system
+        function ownsParentUser() {
+          return isAuthenticated() && (
+            // Check 1: userId in path matches auth.uid (old system - backward compatibility)
+            // This covers users created before custom ID system
+            userId == request.auth.uid ||
+            // Check 2: parent document's authUid field matches authenticated user (new custom ID system)
+            // Note: This assumes the document exists (it should, since ensureUserDocumentExists is called first)
+            get(/databases/$(database)/documents/users/$(userId)).data.authUid == request.auth.uid
+          );
+        }
+        
         // Allow users to read their own annotations
-        allow read: if isOwner(userId);
+        // userId here is the custom ID (participantId or username) or Auth UID from parent path
+        allow read: if ownsParentUser();
         
         // Allow users to create/update their own annotations
-        allow create: if isOwner(userId)
+        // userId in annotation data should match the custom ID from parent path OR Auth UID (for backward compatibility)
+        allow create: if ownsParentUser()
                       && request.resource.data.keys().hasAll(['userId', 'username', 'dialogueId'])
-                      && request.resource.data.userId == userId
+                      && (request.resource.data.userId == userId || request.resource.data.userId == request.auth.uid)
                       && request.resource.data.username is string
                       && request.resource.data.dialogueId is string;
         
-        allow update: if isOwner(userId)
-                      && request.resource.data.userId == userId;
+        allow update: if ownsParentUser()
+                      && (request.resource.data.userId == userId || request.resource.data.userId == request.auth.uid);
         
         // Allow write (for set with merge operations)
-        allow write: if isOwner(userId)
-                     && request.resource.data.userId == userId;
+        allow write: if ownsParentUser()
+                     && (request.resource.data.userId == userId || request.resource.data.userId == request.auth.uid);
         
         // Allow delete (for cleanup operations)
-        allow delete: if isOwner(userId);
+        allow delete: if ownsParentUser();
       }
     }
     

@@ -35,7 +35,25 @@ class FirebaseStorage {
         this.db = null;
         this.auth = null;
         this.currentUser = null;
+        this.customUserId = null; // Store custom user ID (Prolific ID or username)
         this.initialized = false;
+    }
+    
+    /**
+     * Get the custom user ID (Prolific participant ID or username)
+     * This is the Firestore document ID for the user
+     * @returns {string|null} - Custom user ID or null if not available
+     */
+    getCustomUserId() {
+        return this.customUserId;
+    }
+    
+    /**
+     * Set the custom user ID (called after login/registration)
+     * @param {string} customId - The custom user ID (Prolific ID or username)
+     */
+    setCustomUserId(customId) {
+        this.customUserId = customId;
     }
 
     /**
@@ -136,6 +154,9 @@ class FirebaseStorage {
      */
     async registerUser(username, password, assignedDialogues = [], prolificData = null) {
         try {
+            // Determine custom user ID: Prolific participant ID for Prolific users, username for regular users
+            const customUserId = prolificData ? prolificData.participantId : username;
+            
             // Create email from username (Firebase Auth requires email)
             // Format: username@annotation.local
             const email = `${username}@annotation.local`;
@@ -148,6 +169,7 @@ class FirebaseStorage {
             const userDoc = {
                 username: username,
                 email: email,
+                authUid: this.currentUser.uid, // Store Auth UID for reference
                 assignedDialogues: assignedDialogues,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             };
@@ -165,14 +187,18 @@ class FirebaseStorage {
                 console.log('👥 Prolific participant registered:', prolificData.participantId);
             }
             
-            // Store user profile in Firestore with assigned dialogues
-            await this.db.collection('users').doc(this.currentUser.uid).set(userDoc);
+            // Store user profile in Firestore using custom ID as document ID
+            await this.db.collection('users').doc(customUserId).set(userDoc);
             
-            console.log('User registered:', username);
+            // Store custom user ID for this session
+            this.setCustomUserId(customUserId);
+            
+            console.log('User registered:', username, `(custom ID: ${customUserId})`);
             console.log('📋 Assigned dialogues:', assignedDialogues.length);
             return { 
                 success: true, 
-                uid: this.currentUser.uid,
+                uid: customUserId, // Return custom ID instead of Auth UID
+                authUid: this.currentUser.uid, // Also return Auth UID for reference
                 username: username,
                 assignedDialogues: assignedDialogues
             };
@@ -206,10 +232,37 @@ class FirebaseStorage {
             const userCredential = await this.auth.signInWithEmailAndPassword(email, password);
             this.currentUser = userCredential.user;
             
-            console.log('User logged in:', username);
+            // Look up user by custom ID (username is the custom ID for regular users)
+            const userDoc = await this.db.collection('users').doc(username).get();
+            if (!userDoc.exists) {
+                // Fallback: try to find by Auth UID (for backward compatibility)
+                const userDocByUid = await this.db.collection('users').doc(this.currentUser.uid).get();
+                if (userDocByUid.exists) {
+                    console.log('User logged in (found by Auth UID):', username);
+                    return { 
+                        success: true, 
+                        uid: username, // Return username as custom ID
+                        authUid: this.currentUser.uid,
+                        username: username
+                    };
+                }
+                return { success: false, message: 'User profile not found. Please register first.' };
+            }
+            
+            // Verify Auth UID matches (for security)
+            const userData = userDoc.data();
+            if (userData.authUid && userData.authUid !== this.currentUser.uid) {
+                console.warn('Auth UID mismatch - user may have been recreated');
+            }
+            
+            // Store custom user ID for this session
+            this.setCustomUserId(username);
+            
+            console.log('User logged in:', username, `(custom ID: ${username})`);
             return { 
                 success: true, 
-                uid: this.currentUser.uid,
+                uid: username, // Return custom ID (username)
+                authUid: this.currentUser.uid,
                 username: username
             };
         } catch (error) {
@@ -236,6 +289,7 @@ class FirebaseStorage {
         try {
             await this.auth.signOut();
             this.currentUser = null;
+            this.customUserId = null; // Clear custom user ID on logout
             console.log('User logged out');
         } catch (error) {
             console.error('Error logging out:', error);
@@ -426,14 +480,15 @@ class FirebaseStorage {
      * @param {string} email - User email
      * @returns {Promise<boolean>} - True if document exists/created, false on error
      */
-    async ensureUserDocumentExists(uid, username, email) {
+    async ensureUserDocumentExists(customUserId, username, email) {
         if (!this.db) {
             console.error('Firestore not initialized');
             return false;
         }
 
         try {
-            const userDocRef = this.db.collection('users').doc(uid);
+            // Use custom user ID (Prolific ID or username) as document ID
+            const userDocRef = this.db.collection('users').doc(customUserId);
             const userDoc = await userDocRef.get();
             
             if (!userDoc.exists) {
@@ -524,10 +579,13 @@ class FirebaseStorage {
         }
 
         try {
+            // Get custom user ID (Prolific ID or username)
+            const customUserId = this.getCustomUserId() || username;
+            
             // Ensure the user document exists before writing to subcollection
             // This is required by Firestore security rules - parent document must exist
             const userDocExists = await this.ensureUserDocumentExists(
-                user.uid,
+                customUserId,
                 username,
                 user.email || `${username}@annotation.local`
             );
@@ -536,16 +594,17 @@ class FirebaseStorage {
                 throw new Error('Failed to ensure user document exists. Cannot save annotation.');
             }
 
-            // Use per-user annotations subcollection: users/{uid}/annotations/{dialogueId}
-            const userDocRef = this.db.collection('users').doc(user.uid);
+            // Use per-user annotations subcollection: users/{customUserId}/annotations/{dialogueId}
+            const userDocRef = this.db.collection('users').doc(customUserId);
             const annRef = userDocRef.collection('annotations').doc(dialogueId);
 
             // Ensure currentUser is set for future operations
             this.currentUser = user;
 
             // Write annotation to subcollection
+            // Use customUserId in the userId field to match the document path
             await annRef.set({
-                userId: user.uid,
+                userId: customUserId, // Use custom ID (participantId or username) instead of Auth UID
                 username: username,
                 dialogueId: dialogueId,
                 ...annotation,
@@ -596,8 +655,11 @@ class FirebaseStorage {
         }
         
         try {
+            // Get custom user ID (Prolific ID or username)
+            const customUserId = this.getCustomUserId() || username;
+            
             // First try new per-user annotations subcollection
-            const userDocRef = this.db.collection('users').doc(this.currentUser.uid);
+            const userDocRef = this.db.collection('users').doc(customUserId);
             let doc = await userDocRef.collection('annotations').doc(dialogueId).get();
             
             if (doc.exists) {
@@ -632,7 +694,14 @@ class FirebaseStorage {
         }
         
         try {
-            const userDocRef = this.db.collection('users').doc(this.currentUser.uid);
+            // Get custom user ID (Prolific ID or username)
+            const customUserId = this.getCustomUserId();
+            if (!customUserId) {
+                console.warn('Custom user ID not set, cannot get all annotation IDs');
+                return [];
+            }
+            
+            const userDocRef = this.db.collection('users').doc(customUserId);
             const snapshot = await userDocRef.collection('annotations').get();
             
             const dialogueIds = [];
@@ -662,7 +731,14 @@ class FirebaseStorage {
         }
 
         try {
-            const userDoc = await this.db.collection('users').doc(this.currentUser.uid).get();
+            // Get custom user ID (Prolific ID or username)
+            const customUserId = this.getCustomUserId();
+            if (!customUserId) {
+                console.warn('Custom user ID not set, cannot get assigned dialogues');
+                return [];
+            }
+            
+            const userDoc = await this.db.collection('users').doc(customUserId).get();
             
             if (userDoc.exists) {
                 const data = userDoc.data();
@@ -738,7 +814,13 @@ class FirebaseStorage {
         }
 
         try {
-            const doc = await this.db.collection('users').doc(this.currentUser.uid).get();
+            // Get custom user ID (Prolific ID or username)
+            const customUserId = this.getCustomUserId();
+            if (!customUserId) {
+                return null;
+            }
+            
+            const doc = await this.db.collection('users').doc(customUserId).get();
             if (doc.exists) {
                 return doc.data().username;
             }
@@ -761,10 +843,16 @@ class FirebaseStorage {
         }
 
         try {
-            const userDocRef = this.db.collection('users').doc(this.currentUser.uid);
+            // Get custom user ID (Prolific ID or username)
+            const customUserId = this.getCustomUserId();
+            if (!customUserId) {
+                throw new Error('Custom user ID not set');
+            }
+            
+            const userDocRef = this.db.collection('users').doc(customUserId);
             await userDocRef.collection('annotations').doc(dialogueId).delete();
             
-            // Best-effort cleanup of any legacy document
+            // Best-effort cleanup of any legacy document (using Auth UID for legacy)
             const legacyDocId = `${this.currentUser.uid}_${dialogueId}`;
             await this.db.collection('annotations').doc(legacyDocId).delete().catch(() => {});
             
@@ -828,9 +916,16 @@ class FirebaseStorage {
             const userDoc = await this.db.collection('users').doc(this.currentUser.uid).get();
             const userData = userDoc.data();
 
+            // Get custom user ID (Prolific ID or username)
+            const customUserId = this.getCustomUserId();
+            if (!customUserId) {
+                console.warn('Custom user ID not set, cannot get all annotations');
+                return {};
+            }
+            
             // Get all annotations from user subcollection
             const annotationsSnapshot = await this.db.collection('users')
-                .doc(this.currentUser.uid)
+                .doc(customUserId)
                 .collection('annotations')
                 .get();
             
@@ -863,7 +958,14 @@ class FirebaseStorage {
         }
 
         try {
-            await this.db.collection('users').doc(this.currentUser.uid).update({
+            // Get custom user ID (Prolific ID or username)
+            const customUserId = this.getCustomUserId();
+            if (!customUserId) {
+                console.warn('Custom user ID not set, cannot mark Prolific complete');
+                return false;
+            }
+            
+            await this.db.collection('users').doc(customUserId).update({
                 'prolific.completedAt': firebase.firestore.FieldValue.serverTimestamp(),
                 'prolific.completionTime': completionTime,
                 'prolific.status': 'completed'
@@ -887,7 +989,13 @@ class FirebaseStorage {
         }
 
         try {
-            const userDoc = await this.db.collection('users').doc(this.currentUser.uid).get();
+            // Get custom user ID (Prolific ID or username)
+            const customUserId = this.getCustomUserId();
+            if (!customUserId) {
+                return null;
+            }
+            
+            const userDoc = await this.db.collection('users').doc(customUserId).get();
             if (userDoc.exists) {
                 const data = userDoc.data();
                 return data.prolific || null;
@@ -924,18 +1032,29 @@ class FirebaseStorage {
      */
     async getProlificUserByParticipantId(participantId) {
         try {
-            const snapshot = await this.db.collection('users')
-                .where('prolific.participantId', '==', participantId)
-                .limit(1)
-                .get();
+            // For Prolific users, participantId is the custom user ID (document ID)
+            const doc = await this.db.collection('users').doc(participantId).get();
             
-            if (snapshot.empty) {
-                return null;
+            if (!doc.exists) {
+                // Fallback: try query by field (for backward compatibility with old data)
+                const snapshot = await this.db.collection('users')
+                    .where('prolific.participantId', '==', participantId)
+                    .limit(1)
+                    .get();
+
+                if (snapshot.empty) {
+                    return null;
+                }
+
+                const oldDoc = snapshot.docs[0];
+                return {
+                    uid: oldDoc.id,
+                    ...oldDoc.data()
+                };
             }
-            
-            const doc = snapshot.docs[0];
+
             return {
-                uid: doc.id,
+                uid: doc.id, // This will be the participantId (custom ID)
                 ...doc.data()
             };
         } catch (error) {
@@ -1037,10 +1156,20 @@ class FirebaseStorage {
             let recoveredDialoguesFromAnnotations = [];
             
             try {
-                const annotationsSnapshot = await this.db.collection('users')
-                    .doc(authUser.uid)
-                    .collection('annotations')
-                    .get();
+                // Try by custom ID first (participantId), then fallback to Auth UID
+                let annotationsSnapshot = null;
+                try {
+                    annotationsSnapshot = await this.db.collection('users')
+                        .doc(participantId)
+                        .collection('annotations')
+                        .get();
+                } catch (err) {
+                    // Fallback to Auth UID for backward compatibility
+                    annotationsSnapshot = await this.db.collection('users')
+                        .doc(authUser.uid)
+                        .collection('annotations')
+                        .get();
+                }
                 
                 annotationsSnapshot.forEach(doc => {
                     const data = doc.data();
@@ -1087,12 +1216,17 @@ class FirebaseStorage {
                 lastActiveAt: firebase.firestore.FieldValue.serverTimestamp()
             };
             
-            await this.db.collection('users').doc(authUser.uid).set(userDoc);
+            // Store using participantId as custom user ID (document ID)
+            await this.db.collection('users').doc(participantId).set(userDoc);
             
-            console.log('🔄 Recreated Prolific user profile:', username);
+            // Set custom user ID for this session
+            this.setCustomUserId(participantId);
+            
+            console.log('🔄 Recreated Prolific user profile:', username, `(custom ID: ${participantId})`);
             return {
                 success: true,
-                uid: authUser.uid,
+                uid: participantId, // Return custom ID (participantId) instead of Auth UID
+                authUid: authUser.uid, // Also return Auth UID for reference
                 username: username,
                 assignedDialogues: assignedDialogues,
                 recoveredDialogues: recoveredDialogues.length > 0,
@@ -1122,10 +1256,10 @@ class FirebaseStorage {
      * @param {string} uid - User UID
      * @returns {Promise<boolean>}
      */
-    async hasCompletedAllAnnotations(uid) {
+    async hasCompletedAllAnnotations(customUserId) {
         try {
-            // Get user document
-            const userDoc = await this.db.collection('users').doc(uid).get();
+            // Get user document by custom ID (Prolific ID or username)
+            const userDoc = await this.db.collection('users').doc(customUserId).get();
             if (!userDoc.exists) {
                 return false;
             }
@@ -1174,7 +1308,14 @@ class FirebaseStorage {
 
         try {
             // Save feedback in user's document
-            await this.db.collection('users').doc(this.currentUser.uid).update({
+            // Get custom user ID (Prolific ID or username)
+            const customUserId = this.getCustomUserId();
+            if (!customUserId) {
+                console.warn('Custom user ID not set, cannot save feedback');
+                return false;
+            }
+            
+            await this.db.collection('users').doc(customUserId).update({
                 feedback: {
                     rating: feedbackData.rating || 0,
                     comments: feedbackData.comments || '',
@@ -1200,7 +1341,13 @@ class FirebaseStorage {
         }
 
         try {
-            const userDoc = await this.db.collection('users').doc(this.currentUser.uid).get();
+            // Get custom user ID (Prolific ID or username)
+            const customUserId = this.getCustomUserId();
+            if (!customUserId) {
+                return false;
+            }
+            
+            const userDoc = await this.db.collection('users').doc(customUserId).get();
             if (userDoc.exists) {
                 const data = userDoc.data();
                 return !!(data.feedback && data.feedback.submittedAt);
@@ -1208,6 +1355,129 @@ class FirebaseStorage {
             return false;
         } catch (error) {
             console.error('Error checking feedback:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Log instruction read attempt (for first-time users only)
+     * Only records once - does not update if already recorded
+     * @param {number} scrollPercentage - Percentage of instructions read (0-100)
+     * @returns {Promise<boolean>}
+     */
+    async logInstructionReadAttempt(scrollPercentage) {
+        console.log('logInstructionReadAttempt called with:', scrollPercentage);
+        
+        if (!this.currentUser || !this.currentUser.uid) {
+            console.warn('User not authenticated, cannot log instruction read attempt');
+            console.warn('currentUser:', this.currentUser);
+            return false;
+        }
+
+        if (!this.db) {
+            console.error('Firestore not initialized');
+            return false;
+        }
+
+        try {
+            // Get custom user ID (Prolific ID or username)
+            // Fall back to Auth UID for backward compatibility with old system
+            const customUserId = this.getCustomUserId() || this.currentUser.uid;
+            console.log('Using custom user ID:', customUserId);
+            
+            const userDocRef = this.db.collection('users').doc(customUserId);
+            const userDoc = await userDocRef.get();
+            console.log('User document exists:', userDoc.exists);
+            
+            // Check if instruction read data already exists - if so, don't update
+            if (userDoc.exists) {
+                const data = userDoc.data();
+                if (data.first_instruction_read) {
+                    console.log('Instruction read already recorded in Firebase, skipping update');
+                    console.log('Existing data:', data.first_instruction_read);
+                    return true; // Already recorded, don't update
+                }
+            }
+            
+            // Ensure user document exists before updating
+            if (!userDoc.exists) {
+                console.log('User document does not exist, creating it...');
+                // Get username from current user data or use email
+                const username = await this.getUsername() || this.currentUser.email?.split('@')[0] || 'unknown';
+                const email = this.currentUser.email || `${username}@annotation.local`;
+                await this.ensureUserDocumentExists(customUserId, username, email);
+            }
+            
+            // Store the first instruction read attempt (only once)
+            // Use set with merge instead of update to avoid errors if document doesn't exist
+            console.log('Attempting to save first_instruction_read to Firebase...');
+            await userDocRef.set({
+                first_instruction_read: {
+                    scrollPercentage: scrollPercentage,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    reachedBottom: scrollPercentage >= 99.5 // Consider 99.5%+ as reached bottom
+                },
+                lastUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true }); // Use merge to avoid overwriting other fields
+            
+            console.log(`✅ Successfully saved first instruction read: ${scrollPercentage.toFixed(1)}% to Firebase`);
+            return true;
+        } catch (error) {
+            console.error('❌ Error logging instruction read attempt:', error);
+            console.error('Error details:', {
+                code: error.code,
+                message: error.message,
+                uid: this.currentUser?.uid,
+                customUserId: this.getCustomUserId(),
+                scrollPercentage: scrollPercentage
+            });
+            return false;
+        }
+    }
+
+    /**
+     * Update user summary statistics for annotations without BDI edits
+     * @param {boolean} hasNoBdiEdits - Whether the annotation has no BDI edits
+     * @returns {Promise<boolean>}
+     */
+    async updateUserSummaryStats(hasNoBdiEdits) {
+        if (!this.currentUser || !this.currentUser.uid) {
+            console.warn('User not authenticated, cannot update summary stats');
+            return false;
+        }
+
+        if (!this.db) {
+            console.error('Firestore not initialized');
+            return false;
+        }
+
+        try {
+            // Get custom user ID (Prolific ID or username)
+            const customUserId = this.getCustomUserId();
+            if (!customUserId) {
+                console.warn('Custom user ID not set, cannot update user summary stats');
+                return false;
+            }
+            
+            const userDocRef = this.db.collection('users').doc(customUserId);
+            
+            if (hasNoBdiEdits) {
+                // Increment the counter for annotations without BDI edits
+                await userDocRef.update({
+                    annotations_without_bdi_edits: firebase.firestore.FieldValue.increment(1),
+                    lastUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                console.log('✅ Updated user summary: incremented annotations_without_bdi_edits');
+            } else {
+                // Just update the timestamp (BDI was modified, so don't increment counter)
+                await userDocRef.update({
+                    lastUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('Error updating user summary stats:', error);
             return false;
         }
     }

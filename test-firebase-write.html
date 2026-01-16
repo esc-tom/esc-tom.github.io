@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Firebase Write</title>
+</head>
+<body>
+    <h1>Firebase Write Test</h1>
+    <button onclick="testWrite()">Test Write first_instruction_read</button>
+    <div id="output"></div>
+    
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    
+    <script>
+        // Initialize Firebase with your config
+        const firebaseConfig = {
+            apiKey: "AIzaSyBN2jedKTLS7st6IVnDmFKHUIXoewI8KeU",
+            authDomain: "cognitive-appraisal-anno-b2913.firebaseapp.com",
+            projectId: "cognitive-appraisal-anno-b2913",
+            storageBucket: "cognitive-appraisal-anno-b2913.firebasestorage.app",
+            messagingSenderId: "934509856135",
+            appId: "1:934509856135:web:dbf798e9e5b14267a0d8df"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+        
+        async function testWrite() {
+            const output = document.getElementById('output');
+            output.innerHTML = 'Testing...<br>';
+            
+            try {
+                // Check if user is logged in
+                const user = auth.currentUser;
+                if (!user) {
+                    output.innerHTML += '❌ No user logged in. Please log in to the main app first.<br>';
+                    return;
+                }
+                
+                output.innerHTML += `✅ User logged in: ${user.uid}<br>`;
+                output.innerHTML += `Email: ${user.email}<br>`;
+                
+                // Try to write to user document
+                const userDocRef = db.collection('users').doc(user.uid);
+                
+                output.innerHTML += `Attempting to write to: users/${user.uid}<br>`;
+                
+                await userDocRef.set({
+                    first_instruction_read: {
+                        scrollPercentage: 95.5,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        reachedBottom: true,
+                        test: true
+                    },
+                    lastUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                
+                output.innerHTML += '✅ Successfully wrote to Firebase!<br>';
+                output.innerHTML += 'Check Firestore console: users/' + user.uid + '<br>';
+                
+                // Try to read it back
+                const doc = await userDocRef.get();
+                if (doc.exists) {
+                    output.innerHTML += '✅ Document exists<br>';
+                    const data = doc.data();
+                    if (data.first_instruction_read) {
+                        output.innerHTML += '✅ first_instruction_read field found!<br>';
+                        output.innerHTML += 'Data: ' + JSON.stringify(data.first_instruction_read, null, 2) + '<br>';
+                    } else {
+                        output.innerHTML += '❌ first_instruction_read field NOT found<br>';
+                        output.innerHTML += 'Document data: ' + JSON.stringify(data, null, 2) + '<br>';
+                    }
+                } else {
+                    output.innerHTML += '❌ Document does not exist<br>';
+                }
+                
+            } catch (error) {
+                output.innerHTML += '❌ Error: ' + error.message + '<br>';
+                output.innerHTML += 'Error code: ' + error.code + '<br>';
+                output.innerHTML += 'Full error: ' + JSON.stringify(error, null, 2) + '<br>';
+                console.error('Full error object:', error);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -44,7 +44,7 @@ let minContextTurnIndex = null; // Tracks which turn provides minimum necessary 
 let modifiedUtterances = {}; // Track modified utterances { turnIndex: { plain, marked } }
 let annotatedIdList = []; // List of already annotated dialogue IDs from annotated_id_list.json
 const MAX_APPRAISALS = 5;
-const DIALOGUES_PER_USER = 10; // Number of dialogues to assign per user
+const DIALOGUES_PER_USER = 5; // Number of dialogues to assign per user
 
 // Prolific integration state
 let isProlific = false; // Whether current session is from Prolific
@@ -101,7 +101,31 @@ async function init() {
     // Wait for persisted Firebase auth session (if any)
     const authUser = await firebaseStorage.waitForAuthReady();
     if (authUser) {
-        const profile = await firebaseStorage.getUserProfile(authUser.uid);
+        // Try to find user by username first (for regular users) or by Auth UID (fallback)
+        // We need to query by username since we don't know the custom ID yet
+        let profile = null;
+        try {
+            // Try to get profile by querying username field
+            const usernameSnapshot = await firebaseStorage.db.collection('users')
+                .where('username', '==', authUser.email?.split('@')[0] || '')
+                .limit(1)
+                .get();
+            
+            if (!usernameSnapshot.empty) {
+                const doc = usernameSnapshot.docs[0];
+                profile = { uid: doc.id, ...doc.data() };
+                firebaseStorage.setCustomUserId(doc.id); // Set custom ID
+            } else {
+                // Fallback: try by Auth UID (for backward compatibility)
+                profile = await firebaseStorage.getUserProfile(authUser.uid);
+                if (profile) {
+                    // If found by Auth UID, the document ID is the custom ID
+                    firebaseStorage.setCustomUserId(profile.uid);
+                }
+            }
+        } catch (error) {
+            console.error('Error loading user profile:', error);
+        }
         
         if (profile && profile.username) {
             currentUsername = profile.username;
@@ -173,10 +197,13 @@ async function handleProlificSession() {
                     
                     currentUsername = recreateResult.username;
                     
-                    // Store password for future sessions
+                    // Store password for future sessions (recreateResult.uid is now participantId - custom ID)
                     await firebaseStorage.db.collection('users').doc(recreateResult.uid).update({
                         'prolific.password': password
                     });
+                    
+                    // Set custom user ID (Prolific participant ID is the custom ID)
+                    firebaseStorage.setCustomUserId(recreateResult.uid);
                     
                     hideLoginModal();
                     showProlificResumeMessage();
@@ -208,7 +235,7 @@ async function handleProlificSession() {
             // Only proceed if profile is complete
             if (prolificUser && prolificUser.username && prolificUser.uid) {
                 // Profile is complete, proceed with normal flow
-                // Check if they've completed all annotations
+                // Check if they've completed all annotations (prolificUser.uid is now the participantId - custom ID)
                 const isCompleted = await firebaseStorage.hasCompletedAllAnnotations(prolificUser.uid);
             
                 if (isCompleted) {
@@ -242,7 +269,7 @@ async function handleProlificSession() {
                         loginResult = await firebaseStorage.loginUser(username, recoveredPassword);
                         if (loginResult.success) {
                             password = recoveredPassword;
-                            // Update Firestore with recovered password
+                            // Update Firestore with recovered password (prolificUser.uid is now participantId - custom ID)
                             try {
                                 await firebaseStorage.db.collection('users').doc(prolificUser.uid).update({
                                     'prolific.password': recoveredPassword
@@ -278,7 +305,7 @@ async function handleProlificSession() {
                             assignedDialogues = recreateResult.assignedDialogues;
                             logProlificInfo(`Using recovered assigned dialogues: ${assignedDialogues.length} dialogues`);
                             
-                            // Update password in Firestore
+                            // Update password in Firestore (recreateResult.uid is now participantId - custom ID)
                             try {
                                 await firebaseStorage.db.collection('users').doc(recreateResult.uid).update({
                                     'prolific.password': password
@@ -289,6 +316,10 @@ async function handleProlificSession() {
                         }
                         
                         currentUsername = recreateResult.username;
+                        
+                        // Set custom user ID (Prolific participant ID is the custom ID)
+                        firebaseStorage.setCustomUserId(recreateResult.uid); // uid is now the participantId (custom ID)
+                        
                         hideLoginModal();
                         showProlificResumeMessage();
                         await initializeApp();
@@ -300,6 +331,7 @@ async function handleProlificSession() {
                 }
                 
                 // Update session ID if it's different (new Prolific session)
+                // prolificUser.uid is now the participantId (custom ID)
                 if (prolificParams.sessionId && prolificUser.prolific?.sessionId !== prolificParams.sessionId) {
                     try {
                         await firebaseStorage.db.collection('users').doc(prolificUser.uid).update({
@@ -313,7 +345,7 @@ async function handleProlificSession() {
                 }
                 
                 // Get assigned dialogues - ALWAYS use what's stored, NEVER modify during resume
-                // The original 10 dialogues assigned at registration must be preserved
+                // The original 5 dialogues assigned at registration must be preserved
                 assignedDialogues = prolificUser.assignedDialogues || [];
                 if (assignedDialogues.length === 0) {
                     console.warn('⚠️ WARNING: User profile has no assigned dialogues - this should not happen');
@@ -321,6 +353,9 @@ async function handleProlificSession() {
                     logProlificInfo(`Resuming with ${assignedDialogues.length} originally assigned dialogues`);
                 }
                 currentUsername = username;
+                
+                // Set custom user ID (Prolific participant ID is the custom ID)
+                firebaseStorage.setCustomUserId(prolificUser.uid); // uid is now the participantId (custom ID)
                 
                 // Hide login modal and resume annotation
                 hideLoginModal();
@@ -376,7 +411,7 @@ async function handleProlificSession() {
                     assignedDialogues = recreateResult.assignedDialogues;
                     logProlificInfo(`Using recovered assigned dialogues: ${assignedDialogues.length} dialogues`);
                     
-                    // Update password in Firestore
+                    // Update password in Firestore (recreateResult.uid is now participantId - custom ID)
                     try {
                         await firebaseStorage.db.collection('users').doc(recreateResult.uid).update({
                             'prolific.password': password
@@ -397,6 +432,9 @@ async function handleProlificSession() {
                 }
                 
                 currentUsername = recreateResult.username;
+                
+                // Set custom user ID (Prolific participant ID is the custom ID)
+                firebaseStorage.setCustomUserId(recreateResult.uid); // uid is now the participantId (custom ID)
                 
                 hideLoginModal();
                 showProlificResumeMessage();
@@ -429,6 +467,9 @@ async function handleProlificSession() {
         
         currentUsername = username;
         assignedDialogues = result.assignedDialogues || sampledDialogues;
+        
+        // Set custom user ID (Prolific participant ID is the custom ID)
+        firebaseStorage.setCustomUserId(result.uid); // uid is now the participantId (custom ID)
         
         // Hide login modal and start annotation
         hideLoginModal();
@@ -469,7 +510,33 @@ async function initializeApp() {
     }
     
     // Always show instructions when user logs in
-    setTimeout(() => {
+    // But first check Firebase to sync the "seen" state correctly
+    setTimeout(async () => {
+        // Check if user has already recorded instruction read in Firebase
+        if (firebaseStorage) {
+            try {
+                const customUserId = firebaseStorage.getCustomUserId() || firebaseStorage.currentUser?.uid;
+                if (customUserId) {
+                    const userDoc = await firebaseStorage.db.collection('users').doc(customUserId).get();
+                    if (userDoc.exists && userDoc.data().first_instruction_read) {
+                        // User has already recorded instruction read in Firebase
+                        // Sync this to localStorage to keep them in sync
+                        console.log('User has already recorded instruction read in Firebase, syncing to localStorage');
+                        markInstructionsAsSeen();
+                    } else {
+                        // User has NOT recorded instruction read in Firebase yet
+                        // Clear localStorage to ensure isFirstTime will be true
+                        console.log('User has NOT recorded instruction read yet, clearing localStorage to ensure first-time tracking');
+                        localStorage.removeItem(STORAGE_KEYS.INSTRUCTIONS_SEEN);
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking Firebase for instruction read status:', error);
+                // If we can't check Firebase, clear localStorage to be safe (ensures we track it)
+                localStorage.removeItem(STORAGE_KEYS.INSTRUCTIONS_SEEN);
+            }
+        }
+        
         showInstructionModal();
     }, 500); // Small delay to ensure UI is ready
 }
@@ -1897,6 +1964,35 @@ function clearAnnotations() {
     hideStatus();
 }
 
+// Highlight the appraisal section with error animation
+function highlightAppraisalSection() {
+    const appraisalsSection = document.getElementById('appraisals-section');
+    if (!appraisalsSection) return;
+    
+    // Ensure the section is expanded
+    const sectionHeader = appraisalsSection.querySelector('.section-header');
+    const sectionContent = appraisalsSection.querySelector('.section-content');
+    if (sectionContent && sectionContent.style.display === 'none') {
+        // Expand the section
+        sectionContent.style.display = 'block';
+        const collapseIcon = sectionHeader?.querySelector('.collapse-icon');
+        if (collapseIcon) {
+            collapseIcon.textContent = '▼';
+        }
+    }
+    
+    // Add error highlight class
+    appraisalsSection.classList.add('appraisal-error-highlight');
+    
+    // Scroll to the section smoothly
+    appraisalsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Remove the highlight class after animation completes (3 seconds)
+    setTimeout(() => {
+        appraisalsSection.classList.remove('appraisal-error-highlight');
+    }, 3000);
+}
+
 // Save annotation with confirmation
 async function saveAnnotation() {
     if (!currentDialogue) {
@@ -1911,7 +2007,21 @@ async function saveAnnotation() {
         return;
     }
     
-    // Check if BDI or cognitive appraisals have been modified
+    // Require exactly 5 appraisals to be selected
+    if (selectedAppraisals.length !== MAX_APPRAISALS) {
+        const missingCount = MAX_APPRAISALS - selectedAppraisals.length;
+        const plural = missingCount > 1 ? 's' : '';
+        showStatus(`Please select exactly ${MAX_APPRAISALS} cognitive appraisal dimensions.`, 'error');
+        
+        // Highlight the appraisal section with animation
+        highlightAppraisalSection();
+        
+        // Show error message for longer (8 seconds)
+        setTimeout(() => hideStatus(), 8000);
+        return;
+    }
+    
+    // Check if BDI has been modified
     const gt = currentDialogue.ground_truth || {};
     
     // Check BDI modifications (compare stripped values since inputs store values without prefixes)
@@ -1926,25 +2036,6 @@ async function saveAnnotation() {
     const currentIntention = (intentionInput.value || '').trim();
     const originalIntention = stripPrefix('intention', gt.intention || '');
     const intentionModified = currentIntention !== originalIntention;
-    
-    const bdiModified = beliefModified || desireModified || intentionModified;
-    
-    // Check cognitive appraisal modifications
-    const appraisalEditStats = calculateAppraisalEditStats();
-    const appraisalsModified = appraisalEditStats.was_modified;
-    
-    // Warn if neither BDI nor appraisals have been modified
-    if (!bdiModified && !appraisalsModified) {
-        const proceed = confirm(
-            '⚠️ Warning: You have not made any modifications to the BDI or cognitive appraisal dimensions.\n\n' +
-            'Submitting too many data points without modifications may result in rejection of your annotation.\n\n' +
-            'Do you want to proceed with saving anyway?'
-        );
-        
-        if (!proceed) {
-            return; // User cancelled, don't proceed with save
-        }
-    }
     
     // Show confirmation modal
     showConfirmModal();
@@ -2023,9 +2114,6 @@ function showConfirmModal() {
         countEditSpans(desireValue) +
         countEditSpans(intentionValue);
     
-    // Calculate cognitive appraisal edit statistics
-    const appraisalEditStats = calculateAppraisalEditStats();
-    
     const totalEditSpans = utteranceEditSpans + bdiEditSpans;
     
     // Display edit statistics
@@ -2034,37 +2122,26 @@ function showConfirmModal() {
     document.getElementById('confirm-bdi-edits').textContent = bdiEditSpans;
     document.getElementById('confirm-total-edits').textContent = totalEditSpans;
     
-    // Display appraisal edit statistics
-    let appraisalEditElement = document.getElementById('confirm-appraisal-edits');
-    if (!appraisalEditElement) {
+    // Display appraisal count (appraisals are selected, not edited)
+    const appraisalsCount = selectedAppraisals.length;
+    let appraisalCountElement = document.getElementById('confirm-appraisal-edits');
+    if (!appraisalCountElement) {
         const summaryItem = document.createElement('div');
         summaryItem.className = 'summary-item';
         summaryItem.innerHTML = `
-            <span class="summary-label">Appraisal edits:</span>
+            <span class="summary-label">Appraisals selected:</span>
             <span id="confirm-appraisal-edits" class="summary-value"></span>
         `;
         document.querySelector('.annotation-summary').appendChild(summaryItem);
-        appraisalEditElement = document.getElementById('confirm-appraisal-edits');
+        appraisalCountElement = document.getElementById('confirm-appraisal-edits');
     }
-    
-    if (appraisalEditStats.was_modified) {
-        const editDetails = [];
-        if (appraisalEditStats.added_count > 0) {
-            editDetails.push(`+${appraisalEditStats.added_count} added`);
-        }
-        if (appraisalEditStats.removed_count > 0) {
-            editDetails.push(`-${appraisalEditStats.removed_count} removed`);
-        }
-        if (appraisalEditStats.order_changed) {
-            editDetails.push('reordered');
-        }
-        appraisalEditElement.textContent = editDetails.join(', ') || 'Modified';
-        appraisalEditElement.style.color = 'var(--primary-color)';
-        appraisalEditElement.style.fontWeight = '600';
+    appraisalCountElement.textContent = `${appraisalsCount} of ${MAX_APPRAISALS}`;
+    if (appraisalsCount === MAX_APPRAISALS) {
+        appraisalCountElement.style.color = 'var(--success-color)';
+        appraisalCountElement.style.fontWeight = '600';
     } else {
-        appraisalEditElement.textContent = 'No changes';
-        appraisalEditElement.style.color = 'var(--text-secondary)';
-        appraisalEditElement.style.fontWeight = 'normal';
+        appraisalCountElement.style.color = 'var(--warning-color)';
+        appraisalCountElement.style.fontWeight = '600';
     }
     
     modal.classList.add('show');
@@ -2170,8 +2247,8 @@ async function performSave() {
         countEditSpans(desireMarked) +
         countEditSpans(intentionMarked);
     
-    // Calculate cognitive appraisal edit statistics
-    const appraisalEditStats = calculateAppraisalEditStats();
+    // Note: Appraisals are now selected (not edited), so we only track the count
+    const appraisalsCount = selectedAppraisals.length;
     
     const totalEditSpans = utteranceEditSpans + bdiEditSpans;
     
@@ -2207,24 +2284,14 @@ async function performSave() {
             desire: desireMarked,
             intention: intentionMarked
         },
-        // Edit statistics
+        // Edit statistics (only track edits to utterances and BDI)
         edit_stats: {
             edited_utterances: editedUtterancesCount,
             utterance_edit_spans: utteranceEditSpans,
             bdi_edit_spans: bdiEditSpans,
             total_edit_spans: totalEditSpans,
-            // Cognitive appraisal edit statistics
-            appraisal_edits: {
-                original_count: appraisalEditStats.original_count,
-                final_count: appraisalEditStats.final_count,
-                added_count: appraisalEditStats.added_count,
-                removed_count: appraisalEditStats.removed_count,
-                added_appraisals: appraisalEditStats.added_appraisals,
-                removed_appraisals: appraisalEditStats.removed_appraisals,
-                order_changed: appraisalEditStats.order_changed,
-                total_modifications: appraisalEditStats.total_modifications,
-                was_modified: appraisalEditStats.was_modified
-            }
+            // Appraisal selection (not edits)
+            appraisals_selected: appraisalsCount
         },
         timestamp: new Date().toISOString()
     };
@@ -2232,6 +2299,22 @@ async function performSave() {
     try {
         // Save to Firebase
         await saveAnnotationToStorage(currentDialogue.entry_id, annotation);
+        
+        // Track annotations without BDI edits (for assessment purposes)
+        const hasNoBdiEdits = bdiEditSpans === 0;
+        if (hasNoBdiEdits && firebaseStorage) {
+            try {
+                await firebaseStorage.updateUserSummaryStats(true);
+            } catch (error) {
+                console.error('Error updating user summary stats:', error);
+            }
+        } else if (firebaseStorage) {
+            try {
+                await firebaseStorage.updateUserSummaryStats(false);
+            } catch (error) {
+                console.error('Error updating user summary stats:', error);
+            }
+        }
         
         // Update annotation status and progress bar
         annotationStatus[currentDialogue.entry_id] = true;
@@ -2251,26 +2334,6 @@ async function performSave() {
         
         // Build and show edit summary
         const bdiEdited = bdiEditSpans > 0;
-        const appraisalsCount = selectedAppraisals.length;
-        const appraisalsModified = appraisalEditStats.was_modified;
-        
-        // Build appraisal edit summary
-        let appraisalEditSummary = '';
-        if (appraisalsModified) {
-            const editParts = [];
-            if (appraisalEditStats.added_count > 0) {
-                editParts.push(`+${appraisalEditStats.added_count} added`);
-            }
-            if (appraisalEditStats.removed_count > 0) {
-                editParts.push(`-${appraisalEditStats.removed_count} removed`);
-            }
-            if (appraisalEditStats.order_changed) {
-                editParts.push('reordered');
-            }
-            appraisalEditSummary = ` (${editParts.join(', ')})`;
-        } else {
-            appraisalEditSummary = ' (no changes)';
-        }
         
         const summaryHtml = [
             `<strong>✅ Annotation saved for ${currentDialogue.entry_id}</strong>`,
@@ -2279,7 +2342,7 @@ async function performSave() {
             `<span>• BDI edit spans: <strong>${bdiEditSpans}</strong></span>`,
             `<span>• Total edit spans (edits): <strong>${totalEditSpans}</strong></span>`,
             `<span>• BDI revised: <strong>${bdiEdited ? 'Yes' : 'No'}</strong></span>`,
-            `<span>• Appraisals selected: <strong>${appraisalsCount}</strong>${appraisalEditSummary}</span>`
+            `<span>• Appraisals selected: <strong>${appraisalsCount}</strong></span>`
         ].join('<br>');
         
         // Longer duration so user can read the statistics
@@ -2574,8 +2637,8 @@ async function handleLogin() {
             return;
         }
 
-        // Ensure Firestore profile exists for this authenticated user
-        const profile = await firebaseStorage.getUserProfile(result.uid);
+        // Look up user by custom ID (username is the custom ID for regular users)
+        const profile = await firebaseStorage.getUserProfile(result.uid); // result.uid is now the custom ID (username)
         if (!profile) {
             await firebaseStorage.logout();
             showLoginError('Account not found in annotation records. Please register.');
@@ -2583,6 +2646,9 @@ async function handleLogin() {
         }
         
         currentUsername = profile.username || username;
+        
+        // Set custom user ID in firebaseStorage (username for regular users)
+        firebaseStorage.setCustomUserId(result.uid);
         
         // Load assigned dialogues for this user
         await loadAssignedDialogues();
@@ -2684,6 +2750,9 @@ async function handleRegister() {
         
         currentUsername = username;
         assignedDialogues = result.assignedDialogues || sampledDialogues;
+        
+        // Set custom user ID (username is the custom ID for regular users)
+        firebaseStorage.setCustomUserId(result.uid); // uid is now the username (custom ID)
         
         hideRegisterModal();
         await initializeApp();
@@ -2821,14 +2890,14 @@ function showInstructionModal() {
     // Populate appraisal dimensions dynamically
     populateInstructionAppraisals();
     
-    // Disable the button initially
+    // Keep button enabled (always clickable to track percentage)
     if (understoodBtn) {
-        understoodBtn.disabled = true;
-        understoodBtn.style.opacity = '0.5';
-        understoodBtn.style.cursor = 'not-allowed';
+        understoodBtn.disabled = false;
+        understoodBtn.style.opacity = '1';
+        understoodBtn.style.cursor = 'pointer';
     }
     
-    // Set up scroll detection
+    // Set up scroll detection to track percentage
     if (modalBody) {
         // Remove any existing scroll handler first
         if (modalBody._scrollHandler) {
@@ -2836,19 +2905,16 @@ function showInstructionModal() {
         }
         
         const checkScroll = () => {
-            // Check if user has scrolled to the bottom (with 10px threshold for rounding)
-            const isAtBottom = modalBody.scrollHeight - modalBody.scrollTop <= modalBody.clientHeight + 10;
+            // Calculate scroll percentage
+            const scrollTop = modalBody.scrollTop;
+            const scrollHeight = modalBody.scrollHeight;
+            const clientHeight = modalBody.clientHeight;
+            const maxScroll = scrollHeight - clientHeight;
+            const scrollPercentage = maxScroll > 0 ? Math.min(100, Math.max(0, (scrollTop / maxScroll) * 100)) : 100;
             
             if (understoodBtn) {
-                if (isAtBottom) {
-                    understoodBtn.disabled = false;
-                    understoodBtn.style.opacity = '1';
-                    understoodBtn.style.cursor = 'pointer';
-                } else {
-                    understoodBtn.disabled = true;
-                    understoodBtn.style.opacity = '0.5';
-                    understoodBtn.style.cursor = 'not-allowed';
-                }
+                // Store scroll percentage for tracking
+                understoodBtn.dataset.scrollPercentage = scrollPercentage.toFixed(1);
             }
         };
         
@@ -2880,12 +2946,29 @@ function hideInstructionModal() {
 }
 
 function hasSeenInstructions() {
-    return localStorage.getItem(STORAGE_KEYS.INSTRUCTIONS_SEEN) === 'true';
+    const seen = localStorage.getItem(STORAGE_KEYS.INSTRUCTIONS_SEEN) === 'true';
+    console.log('hasSeenInstructions check:', { 
+        key: STORAGE_KEYS.INSTRUCTIONS_SEEN, 
+        value: localStorage.getItem(STORAGE_KEYS.INSTRUCTIONS_SEEN),
+        seen: seen 
+    });
+    return seen;
 }
 
 function markInstructionsAsSeen() {
+    console.log('Marking instructions as seen in localStorage');
     localStorage.setItem(STORAGE_KEYS.INSTRUCTIONS_SEEN, 'true');
 }
+
+// Utility function to reset instruction tracking (for testing/debugging)
+function resetInstructionTracking() {
+    console.log('Resetting instruction tracking...');
+    localStorage.removeItem(STORAGE_KEYS.INSTRUCTIONS_SEEN);
+    console.log('✅ Instruction tracking reset. Refresh the page to see instructions again.');
+}
+
+// Make it available globally for debugging
+window.resetInstructionTracking = resetInstructionTracking;
 
 // Store handler functions for instruction listeners to allow removal
 let instructionHandlers = {
@@ -2932,12 +3015,78 @@ function setupInstructionListeners() {
             understoodBtn.removeEventListener('click', instructionHandlers.understoodHandler);
         }
         // Create and store new handler
-        instructionHandlers.understoodHandler = () => {
-            // Prevent action if button is disabled
-            if (understoodBtn.disabled) {
+        instructionHandlers.understoodHandler = async () => {
+            // Calculate scroll percentage at the moment of click (in case dataset wasn't updated)
+            const modalBody = document.querySelector('#instruction-modal .instruction-body');
+            let scrollPercentage = parseFloat(understoodBtn.dataset.scrollPercentage || '0');
+            
+            // Recalculate if modal body exists and dataset might be stale
+            if (modalBody) {
+                const scrollTop = modalBody.scrollTop;
+                const scrollHeight = modalBody.scrollHeight;
+                const clientHeight = modalBody.clientHeight;
+                const maxScroll = scrollHeight - clientHeight;
+                const calculatedPercentage = maxScroll > 0 ? Math.min(100, Math.max(0, (scrollTop / maxScroll) * 100)) : 100;
+                scrollPercentage = calculatedPercentage;
+                console.log(`📊 Scroll percentage at click: ${scrollPercentage.toFixed(1)}%`);
+            }
+            
+            const isFirstTime = !hasSeenInstructions();
+            
+            console.log('Instruction button clicked:', { isFirstTime, scrollPercentage, firebaseStorage: !!firebaseStorage });
+            
+            // If user read less than 80%, prevent proceeding and warn
+            if (scrollPercentage < 80) {
+                // Track the attempt on first read
+                if (isFirstTime && firebaseStorage) {
+                    try {
+                        console.log('Attempting to log instruction read (below threshold)...');
+                        const result = await firebaseStorage.logInstructionReadAttempt(scrollPercentage);
+                        if (result) {
+                            console.log(`⚠️ User attempted to proceed at ${scrollPercentage.toFixed(1)}% (below 80% threshold) - logged to Firebase`);
+                            // Mark as seen since we successfully logged the attempt
+                            markInstructionsAsSeen();
+                        } else {
+                            console.warn('⚠️ Failed to log instruction read attempt to Firebase - will retry next time');
+                        }
+                    } catch (error) {
+                        console.error('Error logging instruction read attempt:', error);
+                    }
+                }
+                
+                // Show warning message
+                showStatus(`Please read at least 80% of the instructions before proceeding. You've read ${scrollPercentage.toFixed(0)}% of the content.`, 'warning');
+                setTimeout(() => hideStatus(), 5000);
                 return;
             }
-            markInstructionsAsSeen();
+            
+            // User has read 80% or more - allow proceeding and record percentage
+            let firebaseWriteSuccess = false;
+            if (isFirstTime && firebaseStorage) {
+                try {
+                    console.log('Attempting to log instruction read (above threshold)...');
+                    const result = await firebaseStorage.logInstructionReadAttempt(scrollPercentage);
+                    if (result) {
+                        console.log(`✅ Logged instruction read: ${scrollPercentage.toFixed(1)}% - synced to Firebase`);
+                        firebaseWriteSuccess = true;
+                    } else {
+                        console.warn('⚠️ Failed to log instruction read to Firebase');
+                    }
+                } catch (error) {
+                    console.error('Error logging instruction read attempt:', error);
+                }
+            } else if (!isFirstTime) {
+                console.log('Skipping Firebase log - instructions already seen in localStorage');
+                firebaseWriteSuccess = true; // Already recorded, so we can mark as seen
+            }
+            
+            // Only mark as seen if Firebase write succeeded OR if it was already recorded
+            if (firebaseWriteSuccess || !isFirstTime) {
+                markInstructionsAsSeen();
+            } else {
+                console.warn('⚠️ Not marking instructions as seen because Firebase write failed - will retry next time');
+            }
+            
             hideInstructionModal();
         };
         understoodBtn.addEventListener('click', instructionHandlers.understoodHandler);
@@ -2953,7 +3102,8 @@ function setupInstructionListeners() {
         // Create and store new handler
         instructionHandlers.backdropHandler = (e) => {
             if (e.target === modal) {
-                markInstructionsAsSeen();
+                // Don't mark as seen when closing via backdrop - user should use the button
+                console.log('Instruction modal closed via backdrop - not marking as seen');
                 hideInstructionModal();
             }
         };
@@ -3024,7 +3174,7 @@ function showProlificWelcome() {
     const message = `
         <div style="padding: 20px; background: #e7f3ff; border: 2px solid #2196F3; border-radius: 8px; margin: 20px;">
             <h3 style="margin-top: 0; color: #1976D2;">👋 Welcome Prolific Participant!</h3>
-            <p>Thank you for participating in our study. You have been assigned <strong>10 unique dialogues</strong> to annotate.</p>
+            <p>Thank you for participating in our study. You have been assigned <strong>5 unique dialogues</strong> to annotate.</p>
             <p><strong>Instructions:</strong></p>
             <ul style="text-align: left; margin: 10px 0;">
                 <li>Review each dialogue carefully</li>
@@ -3032,7 +3182,7 @@ function showProlificWelcome() {
                 <li>Mark the minimum context turn</li>
                 <li>Save each annotation before moving to the next</li>
             </ul>
-            <p><strong>Important:</strong> After completing all 10 dialogues, you will be automatically redirected back to Prolific.</p>
+            <p><strong>Important:</strong> After completing all 5 dialogues, you will be automatically redirected back to Prolific.</p>
         </div>
     `;
     showStatus(message, 'info', 10000); // Show for 10 seconds
