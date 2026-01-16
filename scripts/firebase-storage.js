@@ -1273,7 +1273,7 @@ class FirebaseStorage {
             
             // Get all annotations for this user
             const annotationsSnapshot = await this.db.collection('users')
-                .doc(uid)
+                .doc(customUserId)
                 .collection('annotations')
                 .get();
             
