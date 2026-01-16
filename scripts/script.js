@@ -1274,12 +1274,12 @@ function loadGroundTruth() {
         console.log('  ✓ Intention loaded:', intentionInput.value);
     }
     
-    // Pre-populate cognitive appraisals
+    // Load cognitive appraisals from ground truth for reference only (do NOT pre-select)
     if (gt.cognitive_appraisals && Array.isArray(gt.cognitive_appraisals)) {
         selectedAppraisals = [];
         originalAppraisals = []; // Reset original appraisals
         
-        console.log('  🧠 Loading appraisals:', gt.cognitive_appraisals);
+        console.log('  🧠 Loading appraisals (reference only):', gt.cognitive_appraisals);
         
         gt.cognitive_appraisals.forEach(dimensionKey => {
             // Find the dimension in cognitiveDimensions
@@ -1294,15 +1294,16 @@ function loadGroundTruth() {
                     dimension: key,
                     description: description
                 };
-                selectedAppraisals.push(appraisalObj);
+                // Store ground truth appraisals only as original reference; do NOT pre-populate UI
                 originalAppraisals.push(appraisalObj); // Store original for comparison
-                console.log(`    ✓ Added: ${key}`);
+                console.log(`    ✓ Loaded reference appraisal: ${key}`);
             } else {
                 console.warn(`    ❌ Ground truth dimension "${dimensionKey}" not found in cognitive_dimensions.json`);
             }
         });
         
-        console.log(`  ✓ Pre-selected ${selectedAppraisals.length} appraisals`);
+        console.log(`  ✓ Loaded ${originalAppraisals.length} ground truth appraisals for reference`);
+        // Keep selectedAppraisals empty so annotators must actively choose their top-5
         renderSelectedAppraisals();
         updateAppraisalOptions();
     } else {

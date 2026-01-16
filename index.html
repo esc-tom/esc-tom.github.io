@@ -209,7 +209,7 @@
             <!-- Right Panel: Annotation Form -->
             <div class="annotation-panel">
                 <h2>Revise Ground Truth Annotations</h2>
-                <p class="annotation-subtitle">Review and modify the pre-filled annotations below</p>
+                <p class="annotation-subtitle">Review the pre-filled BDI and select the top 5 cognitive appraisals below</p>
                 
                 <div id="annotation-locked-message" class="annotation-locked-message">
                     <span class="lock-icon">🔒</span>
@@ -254,7 +254,7 @@
                         Cognitive Appraisals
                     </h3>
                     <div class="section-content" id="appraisals-content">
-                        <p class="help-text">Ground truth appraisals are pre-selected. Modify selections as needed. Drag to reorder by importance.</p>
+                        <p class="help-text">Pick the top 5 appraisals that fit how the patient reacts. They should make sense with the pre-event BDI (what the patient believed, wanted, or planned). Drag to reorder.</p>
                         
                         <div class="appraisal-selector">
                             <label>Available Dimensions (click to select):</label>
@@ -379,7 +379,7 @@
             <div class="modal-body instruction-body">
                 <div class="instruction-section">
                     <h3>Overview & Goal</h3>
-                    <p>Welcome! In this study, you will review AI-generated therapeutic dialogue transcripts and <strong>revise the pre-filled BDI (Belief, Desire, Intention) and cognitive appraisals</strong> based on the dialogue content. <strong>Your core tasks are to revise the BDI and cognitive appraisals.</strong> Dialogue editing is optional and only needed when the content is extremely wrong. <strong>Please read the instructions carefully before starting.</strong></p>
+                    <p>Welcome! In this study, you will review AI-generated therapeutic dialogue transcripts, <strong>revise the pre-filled BDI (Belief, Desire, Intention)</strong>, and <strong>select the top 5 cognitive appraisals</strong> based on the dialogue content. <strong>Your core tasks are to revise the BDI and choose the most appropriate cognitive appraisals.</strong> Dialogue editing is optional and only needed when the content is extremely wrong. <strong>Please read the instructions carefully before starting.</strong></p>
                 </div>
 
                 <div class="instruction-section">
@@ -394,7 +394,7 @@
                                 <li style="margin-bottom: 0.3em;"><strong>Intention:</strong> What the patient planned to do before the bothering event occurred.</li>
                             </ul>
                         </li>
-                        <li><strong>Cognitive Appraisals:</strong> How the patient subjectively evaluates their situation <strong>after the bothering event occurred.</strong>. There will be 14 cognitive appraisal dimensions which are defined in the later part of the instructions.</li>
+                        <li><strong>Cognitive Appraisals:</strong> How the patient subjectively evaluates their situation <strong>after the bothering event occurred.</strong> These appraisals should <strong>make sense given the patient's pre-event BDI</strong> - meaning the way they think about the event should logically connect to what they believed, wanted, or planned before the event happened. There will be 14 cognitive appraisal dimensions which are defined in the later part of the instructions.</li>
                         <li><strong>Minimum Context Turn:</strong> The earliest turn of the dialogue where there is enough information to accurately deduce the patient's mental state (incl. both BDI and cognitive appraisals). <em>Note: Up to 12 turns are displayed, which is typically sufficient for this task.</em></li>
                     </ul>
                     <p style="background: #e7f3ff; padding: 10px; border-left: 4px solid #2196F3; border-radius: 4px; margin-top: 10px;">
@@ -473,7 +473,7 @@
                     <h3>Task 2: Revise Patient's BDI <span style="color: #d9534f;">(CORE TASK)</span></h3>
                     <p><strong>Goal:</strong> Revise the patient's pre-event mental state. <strong>Ensure the annotations reflect the patient's belief, desire, and intention right before the event not after the event occurred.</strong></p>
                     <p><strong>Logic:</strong> Negative emotions are often triggered when an event conflicts with a person’s Beliefs, Desires, and Intentions (BDI).</p>
-                    <p><strong>Instruction:</strong> Revise the patient's BDI to ensure it logically explains their interpretation of the event (i.e., establish a causal link between their beliefs and their cognitive appraisal).</p>
+                    <p><strong>Instruction:</strong> Revise the patient's BDI to ensure it logically explains their interpretation of the event. The BDI you write should help explain why the patient reacted the way they did - meaning their pre-event thoughts should connect to how they appraised the event afterward.</p>
             
                     <table class="instruction-table" style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
                         <thead style="background: #f4f4f4;">
@@ -507,9 +507,14 @@
                     <h3>Task 3: Revise Appraisals <span style="color: #d9534f;">(CORE TASK)</span></h3>
                     <p><strong>Goal:</strong> Select the <strong>Top 5</strong> dimensions based on evidence.</p>
                     
+                    <p style="background: #fff3cd; padding: 12px; border-left: 4px solid #ffc107; border-radius: 4px; margin: 16px 0;">
+                        <strong>⚠️ Important:</strong> The cognitive appraisals you select should <strong>make sense given the patient's pre-event BDI</strong>. Think about it this way: if the patient believed something, wanted something, or planned something before the event, their reaction to the event (the appraisals) should logically connect to those pre-event thoughts. For example, if someone believed their family cared about them, and then their family ignored them, they might appraise it as "unfair" or "unexpected" - these appraisals make sense given their pre-event belief.
+                    </p>
+                    
                     <ul class="instruction-list">
                         <li><strong>ADD</strong> if dialogue clearly supports it (e.g., <em>"I have no idea what happens next"</em> &rarr; <strong>Unpredictability</strong>).</li>
                         <li><strong>REMOVE</strong> if dialogue contradicts it (e.g., <em>"It's out of my hands"</em> &rarr; Remove <strong>Self Control</strong>).</li>
+                        <li><strong>CHECK</strong> that your selected appraisals logically connect to the pre-event BDI you revised in Task 2.</li>
                     </ul>
             
                     <p><strong>Available Appraisal Dimensions:</strong></p>
@@ -553,7 +558,7 @@
                     <p>Before clicking "Save Annotation," ask yourself:</p>
                     <ul class="instruction-checklist">
                         <li><strong>Is the BDI Pre-Event?</strong><br>Do the Beliefs and Desires describe how they felt before the issue started? <span style="color: #d9534f;">(CORE TASK)</span></li>
-                        <li><strong>Are Appraisals Supported?</strong><br>Do the 5 selected dimensions match the patient's specific words? <span style="color: #d9534f;">(CORE TASK)</span></li>
+                        <li><strong>Are Appraisals Supported?</strong><br>Do the 5 selected dimensions match the patient's specific words? Do they make sense given the pre-event BDI? <span style="color: #d9534f;">(CORE TASK)</span></li>
                         <li><strong>Is the Context Precise?</strong><br>Is the green checkmark on the earliest possible turn?</li>
                         <li><strong>Is the Text Clean?</strong><br>Did I fix any extremely wrong content (only if necessary)?</li>
                     </ul>
@@ -563,7 +568,7 @@
                     <h3>FAQs</h3>
                     <div class="faq-item">
                         <p><strong>Do I have to change everything?</strong></p>
-                        <p>No. If the pre-filled info is accurate, leave it.</p>
+                        <p>No. If the pre-filled BDI is already accurate, you can leave it as is and focus on carefully choosing the top 5 appraisals that best match the dialogue.</p>
                     </div>
                     <div class="faq-item">
                         <p><strong>How long should this take?</strong></p>
