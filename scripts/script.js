@@ -43,6 +43,7 @@ let originalAppraisals = []; // Store original ground truth appraisals for compa
 let minContextTurnIndex = null; // Tracks which turn provides minimum necessary context
 let modifiedUtterances = {}; // Track modified utterances { turnIndex: { plain, marked } }
 let annotatedIdList = []; // List of already annotated dialogue IDs from annotated_id_list.json
+let appraisalDragCount = 0; // Track number of drag/reorder operations for appraisals
 const MAX_APPRAISALS = 5;
 const DIALOGUES_PER_USER = 5; // Number of dialogues to assign per user
 
@@ -1464,6 +1465,12 @@ async function loadExistingAnnotation() {
                 });
             }
             
+            // Restore appraisal drag count if it exists (for cumulative tracking across sessions)
+            if (annotation.edit_stats && annotation.edit_stats.appraisal_drag_count !== undefined) {
+                appraisalDragCount = annotation.edit_stats.appraisal_drag_count;
+                console.log(`📊 Restored appraisal drag count: ${appraisalDragCount}`);
+            }
+            
             showStatus('Loaded existing annotation', 'success');
             setTimeout(() => hideStatus(), 2000);
         }
@@ -1952,6 +1959,10 @@ function handleDrop(e) {
     // Insert at new position
     selectedAppraisals.splice(newIndex, 0, draggedItem);
     
+    // Track the drag operation
+    appraisalDragCount++;
+    console.log(`📊 Appraisal reordered. Total drag operations: ${appraisalDragCount}`);
+    
     // Re-render
     renderSelectedAppraisals();
     
@@ -1978,6 +1989,7 @@ function clearAnnotations() {
     intentionInput.value = '';
     selectedAppraisals = [];
     originalAppraisals = []; // Reset original appraisals
+    appraisalDragCount = 0; // Reset drag operation counter
     renderSelectedAppraisals();
     updateAppraisalOptions();
     minContextTurnIndex = null;
@@ -2311,7 +2323,9 @@ async function performSave() {
             bdi_edit_spans: bdiEditSpans,
             total_edit_spans: totalEditSpans,
             // Appraisal selection (not edits)
-            appraisals_selected: appraisalsCount
+            appraisals_selected: appraisalsCount,
+            // Appraisal reordering operations
+            appraisal_drag_count: appraisalDragCount
         },
         timestamp: new Date().toISOString()
     };
