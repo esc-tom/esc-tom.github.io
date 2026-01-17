@@ -3053,10 +3053,38 @@ function setupInstructionListeners() {
             
             const isFirstTime = !hasSeenInstructions();
             
-            console.log('Instruction button clicked:', { isFirstTime, scrollPercentage, firebaseStorage: !!firebaseStorage });
+            console.log('Instruction button clicked:', { 
+                isFirstTime, 
+                scrollPercentage, 
+                firebaseStorage: !!firebaseStorage 
+            });
             
-            // If user read less than 80%, prevent proceeding and warn
-            if (scrollPercentage < 80) {
+            // Check if user has already completed the first instruction read in Firebase
+            // If so, skip the percentage requirement (they're just reviewing or resuming)
+            let hasCompletedFirstRead = false;
+            if (firebaseStorage) {
+                try {
+                    const customUserId = firebaseStorage.getCustomUserId() || firebaseStorage.currentUser?.uid;
+                    if (customUserId) {
+                        const userDoc = await firebaseStorage.db.collection('users').doc(customUserId).get();
+                        if (userDoc.exists && userDoc.data().first_instruction_read) {
+                            hasCompletedFirstRead = true;
+                            console.log('✅ User has already completed first instruction read - skipping percentage check');
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Could not check first instruction read status:', error);
+                }
+            }
+            
+            console.log('Instruction proceed check:', { 
+                hasCompletedFirstRead, 
+                scrollPercentage, 
+                willEnforceCheck: !hasCompletedFirstRead 
+            });
+            
+            // Only enforce 80% requirement if this is truly the first time (not resuming/reviewing)
+            if (!hasCompletedFirstRead && scrollPercentage < 80) {
                 // Track the attempt on first read
                 if (isFirstTime && firebaseStorage) {
                     try {
@@ -3080,9 +3108,11 @@ function setupInstructionListeners() {
                 return;
             }
             
-            // User has read 80% or more - allow proceeding and record percentage
+            // User has read 80% or more (or has already completed first read) - allow proceeding
             let firebaseWriteSuccess = false;
-            if (isFirstTime && firebaseStorage) {
+            
+            // Only log to Firebase if this is truly the first time (hasn't completed first read yet)
+            if (!hasCompletedFirstRead && isFirstTime && firebaseStorage) {
                 try {
                     console.log('Attempting to log instruction read (above threshold)...');
                     const result = await firebaseStorage.logInstructionReadAttempt(scrollPercentage);
@@ -3095,9 +3125,9 @@ function setupInstructionListeners() {
                 } catch (error) {
                     console.error('Error logging instruction read attempt:', error);
                 }
-            } else if (!isFirstTime) {
-                console.log('Skipping Firebase log - instructions already seen in localStorage');
-                firebaseWriteSuccess = true; // Already recorded, so we can mark as seen
+            } else if (hasCompletedFirstRead || !isFirstTime) {
+                console.log('Skipping Firebase log - instructions already completed/seen');
+                firebaseWriteSuccess = true; // Already recorded or not needed, so we can mark as seen
             }
             
             // Only mark as seen if Firebase write succeeded OR if it was already recorded
