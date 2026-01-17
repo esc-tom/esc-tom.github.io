@@ -1201,6 +1201,7 @@ class FirebaseStorage {
             const userDoc = {
                 username: username,
                 email: email,
+                authUid: authUser.uid, // CRITICAL: Store Auth UID for security rules
                 assignedDialogues: assignedDialogues,
                 prolific: {
                     participantId: prolificParams.participantId,
@@ -1229,7 +1230,7 @@ class FirebaseStorage {
                 authUid: authUser.uid, // Also return Auth UID for reference
                 username: username,
                 assignedDialogues: assignedDialogues,
-                recoveredDialogues: recoveredDialogues.length > 0,
+                recoveredDialogues: recoveredDialoguesFromAnnotations.length > 0,
                 message: 'Profile recreated successfully'
             };
         } catch (error) {
