@@ -76,8 +76,9 @@ service cloud.firestore {
             // This covers users created before custom ID system
             userId == request.auth.uid ||
             // Check 2: parent document's authUid field matches authenticated user (new custom ID system)
-            // Note: This assumes the document exists (it should, since ensureUserDocumentExists is called first)
-            get(/databases/$(database)/documents/users/$(userId)).data.authUid == request.auth.uid
+            // IMPORTANT: Check exists() first to prevent permission errors
+            (exists(/databases/$(database)/documents/users/$(userId)) && 
+             get(/databases/$(database)/documents/users/$(userId)).data.authUid == request.auth.uid)
           );
         }
         

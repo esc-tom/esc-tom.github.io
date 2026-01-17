@@ -205,6 +205,15 @@ async function handleProlificSession() {
                     // Set custom user ID (Prolific participant ID is the custom ID)
                     firebaseStorage.setCustomUserId(recreateResult.uid);
                     
+                    // Check if they've completed all annotations (now that user is authenticated)
+                    const isCompletedEarly = await firebaseStorage.hasCompletedAllAnnotations(recreateResult.uid);
+                    if (isCompletedEarly) {
+                        logProlificInfo('Participant has already completed all annotations (checked after early profile recreation)');
+                        hideLoginModal();
+                        showProlificCompletionMessage();
+                        return;
+                    }
+                    
                     hideLoginModal();
                     showProlificResumeMessage();
                     await initializeApp();
@@ -234,20 +243,8 @@ async function handleProlificSession() {
             
             // Only proceed if profile is complete
             if (prolificUser && prolificUser.username && prolificUser.uid) {
-                // Profile is complete, proceed with normal flow
-                // Check if they've completed all annotations (prolificUser.uid is now the participantId - custom ID)
-                const isCompleted = await firebaseStorage.hasCompletedAllAnnotations(prolificUser.uid);
-            
-                if (isCompleted) {
-                    // Already completed - show completion message
-                    logProlificInfo('Participant has already completed all annotations');
-                    hideLoginModal();
-                    showProlificCompletionMessage();
-                    return;
-                }
-            
-                // Not completed - auto-login and resume
-                logProlificInfo('Participant not completed, auto-logging in to resume session');
+                // Profile is complete, proceed with login first (need auth to check completion status)
+                logProlificInfo('Participant profile found, attempting auto-login to resume session');
             
                 const username = prolificUser.username;
                 let password = prolificUser.prolific?.password;
@@ -320,6 +317,15 @@ async function handleProlificSession() {
                         // Set custom user ID (Prolific participant ID is the custom ID)
                         firebaseStorage.setCustomUserId(recreateResult.uid); // uid is now the participantId (custom ID)
                         
+                        // Check if they've completed all annotations (now that user is authenticated)
+                        const isCompletedAfterRecreate = await firebaseStorage.hasCompletedAllAnnotations(recreateResult.uid);
+                        if (isCompletedAfterRecreate) {
+                            logProlificInfo('Participant has already completed all annotations (checked after profile recreation)');
+                            hideLoginModal();
+                            showProlificCompletionMessage();
+                            return;
+                        }
+                        
                         hideLoginModal();
                         showProlificResumeMessage();
                         await initializeApp();
@@ -329,6 +335,20 @@ async function handleProlificSession() {
                         return;
                     }
                 }
+                
+                // Now that user is authenticated, check if they've completed all annotations
+                logProlificInfo('User authenticated, checking completion status');
+                const isCompleted = await firebaseStorage.hasCompletedAllAnnotations(prolificUser.uid);
+                
+                if (isCompleted) {
+                    // Already completed - show completion message
+                    logProlificInfo('Participant has already completed all annotations');
+                    hideLoginModal();
+                    showProlificCompletionMessage();
+                    return;
+                }
+                
+                logProlificInfo('Participant has not completed all annotations, proceeding to resume session');
                 
                 // Update session ID if it's different (new Prolific session)
                 // prolificUser.uid is now the participantId (custom ID)
