@@ -1151,6 +1151,64 @@ class FirebaseStorage {
                 }
             }
             
+            // Try to recover critical user data to preserve it during recreation
+            let existingFirstInstructionRead = null;
+            let existingAnnotationsWithoutBdiEdits = null;
+            
+            try {
+                // Check current doc first (Auth UID)
+                const currentUserDoc = await this.db.collection('users').doc(authUser.uid).get();
+                if (currentUserDoc.exists) {
+                    const data = currentUserDoc.data();
+                    if (data.first_instruction_read) {
+                        existingFirstInstructionRead = data.first_instruction_read;
+                        console.log('📋 Found first_instruction_read in current doc, will preserve it');
+                    }
+                    if (data.annotations_without_bdi_edits !== undefined) {
+                        existingAnnotationsWithoutBdiEdits = data.annotations_without_bdi_edits;
+                        console.log('📋 Found annotations_without_bdi_edits in current doc, will preserve it');
+                    }
+                }
+                
+                // If not found, check participantId doc
+                if (!existingFirstInstructionRead || existingAnnotationsWithoutBdiEdits === null) {
+                    const participantDoc = await this.db.collection('users').doc(participantId).get();
+                    if (participantDoc.exists) {
+                        const data = participantDoc.data();
+                        if (!existingFirstInstructionRead && data.first_instruction_read) {
+                            existingFirstInstructionRead = data.first_instruction_read;
+                            console.log('📋 Found first_instruction_read in participantId doc, will preserve it');
+                        }
+                        if (existingAnnotationsWithoutBdiEdits === null && data.annotations_without_bdi_edits !== undefined) {
+                            existingAnnotationsWithoutBdiEdits = data.annotations_without_bdi_edits;
+                            console.log('📋 Found annotations_without_bdi_edits in participantId doc, will preserve it');
+                        }
+                    }
+                }
+                
+                // If still not found, query by participantId
+                if (!existingFirstInstructionRead || existingAnnotationsWithoutBdiEdits === null) {
+                    const prolificQuery = await this.db.collection('users')
+                        .where('prolific.participantId', '==', prolificParams.participantId)
+                        .limit(1)
+                        .get();
+                    
+                    if (!prolificQuery.empty) {
+                        const queryDoc = prolificQuery.docs[0].data();
+                        if (!existingFirstInstructionRead && queryDoc.first_instruction_read) {
+                            existingFirstInstructionRead = queryDoc.first_instruction_read;
+                            console.log('📋 Found first_instruction_read in query doc, will preserve it');
+                        }
+                        if (existingAnnotationsWithoutBdiEdits === null && queryDoc.annotations_without_bdi_edits !== undefined) {
+                            existingAnnotationsWithoutBdiEdits = queryDoc.annotations_without_bdi_edits;
+                            console.log('📋 Found annotations_without_bdi_edits in query doc, will preserve it');
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Could not recover user data fields:', error);
+            }
+            
             // Check if there are any existing annotations (to recover assigned dialogues as fallback)
             let existingAnnotations = [];
             let recoveredDialoguesFromAnnotations = [];
@@ -1216,6 +1274,16 @@ class FirebaseStorage {
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 lastActiveAt: firebase.firestore.FieldValue.serverTimestamp()
             };
+            
+            // CRITICAL: Preserve important user data fields if they exist
+            if (existingFirstInstructionRead) {
+                userDoc.first_instruction_read = existingFirstInstructionRead;
+                console.log('✅ Preserved first_instruction_read during profile recreation');
+            }
+            if (existingAnnotationsWithoutBdiEdits !== null) {
+                userDoc.annotations_without_bdi_edits = existingAnnotationsWithoutBdiEdits;
+                console.log('✅ Preserved annotations_without_bdi_edits during profile recreation');
+            }
             
             // Store using participantId as custom user ID (document ID)
             await this.db.collection('users').doc(participantId).set(userDoc);
