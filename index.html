@@ -196,7 +196,11 @@
                         </div>
                         <div class="instruction-step">
                             <span class="step-number">4</span>
-                            <span class="step-text">Save when done.</span>
+                            <span class="step-text"><strong>Rate the dialogue quality</strong> using the 1-5 star ratings at the bottom of the page.</span>
+                        </div>
+                        <div class="instruction-step">
+                            <span class="step-number">5</span>
+                            <span class="step-text">Click <strong>Save Annotation</strong> at the bottom when done.</span>
                         </div>
                     </div>
                 </div>
@@ -269,13 +273,71 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Action Buttons -->
-                <div class="action-buttons">
-                    <button id="save-btn" class="btn btn-success" disabled>Save Annotation</button>
-                    <button id="clear-btn" class="btn btn-warning">Clear Annotations</button>
+            </div>
+        </div>
+        
+        <!-- Dialogue Quality Ratings (Full Width) -->
+        <div id="dialogue-rating-section" class="dialogue-rating-section" style="display: none;">
+            <div class="rating-section-header">
+                <h3 class="rating-section-title">⭐ Dialogue Quality</h3>
+                <p class="rating-section-subtitle">Rate on the following criteria (1-5 stars)</p>
+            </div>
+            
+            <div class="rating-items-grid">
+                <div class="rating-item">
+                    <label class="rating-label">The dialogue is realistic.</label>
+                    <div class="star-rating-input" id="rating-realism">
+                        <span class="star" data-value="1">☆</span>
+                        <span class="star" data-value="2">☆</span>
+                        <span class="star" data-value="3">☆</span>
+                        <span class="star" data-value="4">☆</span>
+                        <span class="star" data-value="5">☆</span>
+                    </div>
+                    <input type="hidden" id="rating-realism-value" value="0">
+                </div>
+                
+                <div class="rating-item">
+                    <label class="rating-label">The dialogue reflects the patient's persona.</label>
+                    <div class="star-rating-input" id="rating-persona">
+                        <span class="star" data-value="1">☆</span>
+                        <span class="star" data-value="2">☆</span>
+                        <span class="star" data-value="3">☆</span>
+                        <span class="star" data-value="4">☆</span>
+                        <span class="star" data-value="5">☆</span>
+                    </div>
+                    <input type="hidden" id="rating-persona-value" value="0">
+                </div>
+                
+                <div class="rating-item">
+                    <label class="rating-label">The BDI is well-associated with the dialogue.</label>
+                    <div class="star-rating-input" id="rating-bdi">
+                        <span class="star" data-value="1">☆</span>
+                        <span class="star" data-value="2">☆</span>
+                        <span class="star" data-value="3">☆</span>
+                        <span class="star" data-value="4">☆</span>
+                        <span class="star" data-value="5">☆</span>
+                    </div>
+                    <input type="hidden" id="rating-bdi-value" value="0">
+                </div>
+                
+                <div class="rating-item">
+                    <label class="rating-label">The appraisals are well-associated with the dialogue.</label>
+                    <div class="star-rating-input" id="rating-appraisals">
+                        <span class="star" data-value="1">☆</span>
+                        <span class="star" data-value="2">☆</span>
+                        <span class="star" data-value="3">☆</span>
+                        <span class="star" data-value="4">☆</span>
+                        <span class="star" data-value="5">☆</span>
+                    </div>
+                    <input type="hidden" id="rating-appraisals-value" value="0">
                 </div>
             </div>
+        </div>
+        
+        <!-- Action Buttons (Full Width) -->
+        <div class="action-buttons-fullwidth">
+            <button id="save-btn" class="btn btn-success" disabled>💾 Save Annotation</button>
+            <button id="clear-btn" class="btn btn-warning">🔄 Clear Annotations</button>
         </div>
     </div>
 
@@ -449,6 +511,17 @@
                                 <strong>How to Edit:</strong> Hover over the utterance and click "Edit". Modify the text and click "Save". (The text will show a yellow highlight and an (edited) marker).
                             </div>
                         </div>
+
+                        <div class="workflow-task">
+                            <div class="workflow-task-header">
+                                <span class="workflow-number">4</span>
+                                <strong>Rate Dialogue Quality</strong>
+                            </div>
+                            <p class="workflow-description">After completing your annotations, rate the dialogue quality using the 1-5 star rating section at the bottom of the page. Rate the dialogue on realism, persona consistency, BDI association, and appraisal association.</p>
+                            <div class="workflow-howto">
+                                <strong>How to Rate:</strong> Click the stars in each of the four rating criteria (1 star = poor, 5 stars = excellent).
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -561,6 +634,7 @@
                         <li><strong>Are Appraisals Supported?</strong><br>Do the 5 selected dimensions match the patient's specific words? Do they make sense given the pre-event BDI? <span style="color: #d9534f;">(CORE TASK)</span></li>
                         <li><strong>Is the Context Precise?</strong><br>Is the green checkmark on the earliest possible turn?</li>
                         <li><strong>Is the Text Clean?</strong><br>Did I fix any extremely wrong content (only if necessary)?</li>
+                        <li><strong>Have I Rated the Dialogue?</strong><br>Did I provide star ratings for all 4 quality criteria at the bottom of the page?</li>
                     </ul>
                 </div>
 
