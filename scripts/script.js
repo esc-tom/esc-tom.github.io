@@ -63,7 +63,7 @@ const dialogueSelect = document.getElementById('dialogue-select');
 const dialogueContainer = document.getElementById('dialogue-container');
 const progressText = document.getElementById('progress-text');
 const saveBtn = document.getElementById('save-btn');
-const clearBtn = document.getElementById('clear-btn');
+// Clear button removed - clearAnnotations() function kept for internal use
 
 // Annotation inputs
 const beliefInput = document.getElementById('belief');
@@ -540,6 +540,7 @@ async function initializeApp() {
     // But first check Firebase to sync the "seen" state correctly
     setTimeout(async () => {
         // Check if user has already recorded instruction read in Firebase
+        let isFirstTimeUser = false;
         if (firebaseStorage) {
             try {
                 const customUserId = firebaseStorage.getCustomUserId() || firebaseStorage.currentUser?.uid;
@@ -550,21 +551,29 @@ async function initializeApp() {
                         // Sync this to localStorage to keep them in sync
                         console.log('User has already recorded instruction read in Firebase, syncing to localStorage');
                         markInstructionsAsSeen();
+                        isFirstTimeUser = false;
                     } else {
                         // User has NOT recorded instruction read in Firebase yet
                         // Clear localStorage to ensure isFirstTime will be true
                         console.log('User has NOT recorded instruction read yet, clearing localStorage to ensure first-time tracking');
                         localStorage.removeItem(STORAGE_KEYS.INSTRUCTIONS_SEEN);
+                        isFirstTimeUser = true;
                     }
                 }
             } catch (error) {
                 console.error('Error checking Firebase for instruction read status:', error);
                 // If we can't check Firebase, clear localStorage to be safe (ensures we track it)
                 localStorage.removeItem(STORAGE_KEYS.INSTRUCTIONS_SEEN);
+                isFirstTimeUser = true;
             }
         }
         
-        showInstructionModal();
+        // Show warning modal for first-time users, otherwise show instructions directly
+        if (isFirstTimeUser) {
+            showFirstTimeWarningModal();
+        } else {
+            showInstructionModal();
+        }
     }, 500); // Small delay to ensure UI is ready
 }
 
@@ -884,7 +893,7 @@ function renderAppraisalOptions() {
 function setupEventListeners() {
     dialogueSelect.addEventListener('change', handleDialogueChange);
     saveBtn.addEventListener('click', saveAnnotation);
-    clearBtn.addEventListener('click', clearAnnotations);
+    // Clear button removed - clearAnnotations() function kept for internal use
     
     // Setup collapsible sections
     setupCollapsibleSections();
@@ -3099,6 +3108,13 @@ function showInstructionModal() {
     // Populate appraisal dimensions dynamically
     populateInstructionAppraisals();
     
+    // Track start time for first-time instruction reading
+    // Only set if not already set (in case modal is opened/closed multiple times)
+    if (instructionStartTime === null && !hasSeenInstructions()) {
+        instructionStartTime = Date.now();
+        console.log('📖 Started tracking instruction reading time');
+    }
+    
     // Keep button enabled (always clickable to track percentage)
     if (understoodBtn) {
         understoodBtn.disabled = false;
@@ -3187,6 +3203,44 @@ let instructionHandlers = {
     backdropHandler: null
 };
 
+// Track when instruction modal is first opened (for reading time calculation)
+let instructionStartTime = null;
+
+// Show first-time warning modal
+function showFirstTimeWarningModal() {
+    const modal = document.getElementById('first-time-warning-modal');
+    if (!modal) return;
+    
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    
+    // Set up the button listener
+    const understoodBtn = document.getElementById('warning-understood-btn');
+    if (understoodBtn) {
+        // Remove any existing listener
+        const newBtn = understoodBtn.cloneNode(true);
+        understoodBtn.parentNode.replaceChild(newBtn, understoodBtn);
+        
+        // Add click listener to show instructions
+        newBtn.addEventListener('click', () => {
+            hideFirstTimeWarningModal();
+            // Small delay before showing instructions for smooth transition
+            setTimeout(() => {
+                showInstructionModal();
+            }, 300);
+        });
+    }
+}
+
+// Hide first-time warning modal
+function hideFirstTimeWarningModal() {
+    const modal = document.getElementById('first-time-warning-modal');
+    if (!modal) return;
+    
+    modal.classList.remove('show');
+    document.body.style.overflow = 'auto';
+}
+
 function setupInstructionListeners() {
     // Show instruction button
     const showBtn = document.getElementById('show-instructions-btn');
@@ -3274,13 +3328,18 @@ function setupInstructionListeners() {
             
             // Only enforce 80% requirement if this is truly the first time (not resuming/reviewing)
             if (!hasCompletedFirstRead && scrollPercentage < 80) {
+                // Calculate reading time in seconds
+                const readingTimeSeconds = instructionStartTime !== null 
+                    ? Math.round((Date.now() - instructionStartTime) / 1000) 
+                    : 0;
+                
                 // Track the attempt on first read
                 if (isFirstTime && firebaseStorage) {
                     try {
                         console.log('Attempting to log instruction read (below threshold)...');
-                        const result = await firebaseStorage.logInstructionReadAttempt(scrollPercentage);
+                        const result = await firebaseStorage.logInstructionReadAttempt(scrollPercentage, readingTimeSeconds);
                         if (result) {
-                            console.log(`⚠️ User attempted to proceed at ${scrollPercentage.toFixed(1)}% (below 80% threshold) - logged to Firebase`);
+                            console.log(`⚠️ User attempted to proceed at ${scrollPercentage.toFixed(1)}% (below 80% threshold) after ${readingTimeSeconds}s - logged to Firebase`);
                             // Mark as seen since we successfully logged the attempt
                             markInstructionsAsSeen();
                         } else {
@@ -3300,14 +3359,21 @@ function setupInstructionListeners() {
             // User has read 80% or more (or has already completed first read) - allow proceeding
             let firebaseWriteSuccess = false;
             
+            // Calculate reading time in seconds
+            const readingTimeSeconds = instructionStartTime !== null 
+                ? Math.round((Date.now() - instructionStartTime) / 1000) 
+                : 0;
+            
             // Only log to Firebase if this is truly the first time (hasn't completed first read yet)
             if (!hasCompletedFirstRead && isFirstTime && firebaseStorage) {
                 try {
                     console.log('Attempting to log instruction read (above threshold)...');
-                    const result = await firebaseStorage.logInstructionReadAttempt(scrollPercentage);
+                    const result = await firebaseStorage.logInstructionReadAttempt(scrollPercentage, readingTimeSeconds);
                     if (result) {
-                        console.log(`✅ Logged instruction read: ${scrollPercentage.toFixed(1)}% - synced to Firebase`);
+                        console.log(`✅ Logged instruction read: ${scrollPercentage.toFixed(1)}% in ${readingTimeSeconds}s - synced to Firebase`);
                         firebaseWriteSuccess = true;
+                        // Reset the start time after successful logging
+                        instructionStartTime = null;
                     } else {
                         console.warn('⚠️ Failed to log instruction read to Firebase');
                     }
