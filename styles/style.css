@@ -2852,6 +2852,60 @@ header h1 {
     padding-left: 16px;
 }
 
+/* Instruction modal progress bar */
+.instruction-progress-wrapper {
+    width: 100%;
+    margin-top: 8px;
+    position: relative;
+    padding-top: 2px;
+}
+
+.instruction-progress-wrapper::before {
+    content: "Reading progress";
+    display: block;
+    font-size: 13px;
+    font-style: italic;
+    letter-spacing: 0.em;
+    text-transform: uppercase;
+    color: #ffffff; /* vibrant blue for strong contrast on white */
+    margin-bottom: 8px;
+    font-weight: 700;
+    opacity: 0.9;
+}
+
+.instruction-progress-track {
+    position: relative;
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.12); /* subtle dark base */
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+.instruction-progress-fill {
+    position: absolute;
+    inset: 0;
+    width: 0%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #f97316, #ea580c); /* vibrant blue gradient for strong contrast */
+    box-shadow:
+        0 0 0 1px rgba(37, 99, 235, 0.5),
+        0 0 16px rgba(37, 99, 235, 0.4);
+    transform-origin: left center;
+    transition: width 0.35s ease-out;
+}
+
+.instruction-modal .modal-header {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.instruction-modal .modal-header h2 {
+    margin-bottom: 0;
+}
+
 /* Responsive adjustments for instruction modal */
 @media (max-width: 768px) {
     .instruction-modal .modal-content {

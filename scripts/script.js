@@ -242,6 +242,29 @@ async function handleProlificSession() {
         if (prolificUser) {
             logProlificInfo('Participant already registered, checking completion status');
             
+            // If this participant was previously REJECTED, immediately show
+            // the rejection message again and send them back to Prolific.
+            const prolificStatus = prolificUser.prolific?.status;
+            if (prolificStatus === 'rejected') {
+                logProlificInfo('Participant previously rejected - showing rejection message and redirecting');
+                
+                // Show rejection screen (no detailed metrics available here, so pass empty object)
+                showProlificRejectionScreen({
+                    scrollPercentage: prolificUser.first_instruction_read?.scrollPercentage ?? 0,
+                    readingTimeSeconds: prolificUser.first_instruction_read?.readingTimeSeconds ?? 0
+                });
+                
+                // Redirect back to Prolific after short delay
+                if (PROLIFIC_CONFIG.redirectOnComplete) {
+                    setTimeout(() => {
+                        const redirectURL = getProlificRejectionURL();
+                        logProlificInfo('Redirecting to Prolific for previously rejected participant', { url: redirectURL });
+                        window.location.href = redirectURL;
+                    }, 3000); // 3s delay for consistency with other redirects
+                }
+                return;
+            }
+            
             // Validate profile is complete
             if (!prolificUser.username || !prolificUser.uid) {
                 logProlificInfo('Profile incomplete, will attempt recreation below');
@@ -3101,6 +3124,12 @@ function showInstructionModal() {
     const modal = document.getElementById('instruction-modal');
     const modalBody = modal.querySelector('.instruction-body');
     const understoodBtn = document.getElementById('instruction-understood-btn');
+    const progressFill = document.getElementById('instruction-progress-fill');
+    
+    // Reset progress bar when opening
+    if (progressFill) {
+        progressFill.style.width = '0%';
+    }
     
     modal.classList.add('show');
     // Prevent body scroll when modal is open
@@ -3140,6 +3169,13 @@ function showInstructionModal() {
             if (understoodBtn) {
                 // Store scroll percentage for tracking
                 understoodBtn.dataset.scrollPercentage = scrollPercentage.toFixed(1);
+            }
+            
+            // Update instruction progress bar (smooth via CSS transition)
+            const progressFillEl = document.getElementById('instruction-progress-fill');
+            if (progressFillEl) {
+                const clamped = Math.max(0, Math.min(100, scrollPercentage));
+                progressFillEl.style.width = clamped + '%';
             }
         };
         
@@ -3325,38 +3361,126 @@ function setupInstructionListeners() {
                 scrollPercentage, 
                 willEnforceCheck: !hasCompletedFirstRead 
             });
-            
-            // Only enforce 80% requirement if this is truly the first time (not resuming/reviewing)
-            if (!hasCompletedFirstRead && scrollPercentage < 80) {
+
+            // ===== ATTENTION CHECK & EARLY REJECTION (BEFORE ANNOTATION) =====
+            //
+            // For Prolific participants, we enforce an instruction-reading attention check
+            // *before* they can proceed to annotation. If they fail, we immediately
+            // reject and redirect back to Prolific, and DO NOT allow annotation.
+            //
+            // For non-Prolific users, we simply block proceeding and show a warning.
+
+            const isProlific = (typeof isProlificSession === 'function') ? isProlificSession() : false;
+
+            // Only enforce attention check if this is truly the first time and first read is not already completed
+            if (!hasCompletedFirstRead && isFirstTime) {
                 // Calculate reading time in seconds
                 const readingTimeSeconds = instructionStartTime !== null 
                     ? Math.round((Date.now() - instructionStartTime) / 1000) 
                     : 0;
-                
-                // Track the attempt on first read
-                if (isFirstTime && firebaseStorage) {
-                    try {
-                        console.log('Attempting to log instruction read (below threshold)...');
-                        const result = await firebaseStorage.logInstructionReadAttempt(scrollPercentage, readingTimeSeconds);
-                        if (result) {
-                            console.log(`⚠️ User attempted to proceed at ${scrollPercentage.toFixed(1)}% (below 80% threshold) after ${readingTimeSeconds}s - logged to Firebase`);
-                            // Mark as seen since we successfully logged the attempt
-                            markInstructionsAsSeen();
-                        } else {
-                            console.warn('⚠️ Failed to log instruction read attempt to Firebase - will retry next time');
+
+                const checks = PROLIFIC_CONFIG && PROLIFIC_CONFIG.instructionChecks;
+                const checksEnabled = !!(checks && checks.enabled);
+
+                if (checksEnabled) {
+                    const minScroll = checks.minScrollPercentage ?? 0;
+                    const minTime = checks.minReadingTimeSeconds ?? 0;
+                    const requireBoth = checks.requireBoth !== false; // default true
+
+                    const scrollPassed = scrollPercentage >= minScroll;
+                    const timePassed = readingTimeSeconds >= minTime;
+
+                    let passed;
+                    let reason = null;
+
+                    if (requireBoth) {
+                        passed = scrollPassed && timePassed;
+                        if (!passed) {
+                            const reasons = [];
+                            if (!scrollPassed) {
+                                reasons.push(`insufficient scroll (${scrollPercentage.toFixed(1)}% < ${minScroll}%)`);
+                            }
+                            if (!timePassed) {
+                                reasons.push(`insufficient reading time (${readingTimeSeconds}s < ${minTime}s)`);
+                            }
+                            reason = reasons.join(', ');
                         }
-                    } catch (error) {
-                        console.error('Error logging instruction read attempt:', error);
+                    } else {
+                        passed = scrollPassed || timePassed;
+                        if (!passed) {
+                            reason = `both scroll (${scrollPercentage.toFixed(1)}% < ${minScroll}%) and reading time (${readingTimeSeconds}s < ${minTime}s) below thresholds`;
+                        }
+                    }
+
+                    console.log('Instruction attention check result:', {
+                        isProlific,
+                        scrollPercentage,
+                        readingTimeSeconds,
+                        scrollPassed,
+                        timePassed,
+                        passed,
+                        reason
+                    });
+
+                    if (!passed) {
+                        // Log attempt once in Firebase (for analytics)
+                        if (firebaseStorage) {
+                            try {
+                                console.log('Attempting to log failed instruction attention check...');
+                                await firebaseStorage.logInstructionReadAttempt(scrollPercentage, readingTimeSeconds);
+                            } catch (error) {
+                                console.error('Error logging failed instruction read attempt:', error);
+                            }
+                        }
+
+                        // Close the instruction modal since the attention check failed
+                        // (do this for all users so the rejection/warning is clearly visible)
+                        hideInstructionModal();
+
+                        // For Prolific sessions: immediately reject and redirect, do NOT allow annotation
+                        if (isProlific && firebaseStorage && typeof getProlificRejectionURL === 'function') {
+                            try {
+                                await firebaseStorage.markProlificRejected(reason || 'Failed instruction attention check', {
+                                    scrollPercentage,
+                                    readingTimeSeconds
+                                });
+                            } catch (error) {
+                                console.error('Error marking Prolific rejected after failed attention check:', error);
+                            }
+
+                            // Show rejection screen and redirect
+                            if (typeof showProlificRejectionScreen === 'function') {
+                                showProlificRejectionScreen({
+                                    scrollPercentage,
+                                    readingTimeSeconds
+                                });
+                            }
+
+                            if (PROLIFIC_CONFIG.redirectOnComplete) {
+                                setTimeout(() => {
+                                    const redirectURL = getProlificRejectionURL();
+                                    logProlificInfo('Redirecting to Prolific due to failed attention check', { url: redirectURL });
+                                    window.location.href = redirectURL;
+                                }, 3000); // 3s to read rejection message
+                            }
+
+                            return; // HARD STOP: do not proceed to annotation
+                        }
+
+                        // Non-Prolific or fallback: block proceeding and show warning
+                        showStatus(
+                            `Please read the instructions more carefully before proceeding. ` +
+                            `You've scrolled ${scrollPercentage.toFixed(0)}% (min ${minScroll}%) and read for ${readingTimeSeconds}s (min ${minTime}s).`,
+                            'warning'
+                        );
+                        setTimeout(() => hideStatus(), 6000);
+                        return;
                     }
                 }
-                
-                // Show warning message
-                showStatus(`Please read at least 80% of the instructions before proceeding. You've read ${scrollPercentage.toFixed(0)}% of the content.`, 'warning');
-                setTimeout(() => hideStatus(), 5000);
-                return;
             }
-            
-            // User has read 80% or more (or has already completed first read) - allow proceeding
+
+            // Attention check passed (or not enabled) OR user has already completed first read
+            // Allow proceeding and log successful read once
             let firebaseWriteSuccess = false;
             
             // Calculate reading time in seconds
@@ -3442,6 +3566,9 @@ function handleLogout() {
 // ========== PROLIFIC INTEGRATION FUNCTIONS ==========
 
 // Handle Prolific study completion
+// NOTE: Instruction-reading attention checks are enforced EARLIER,
+// at the instruction modal stage. We do NOT reject here after
+// annotations are completed.
 async function handleProlificCompletion() {
     try {
         // Calculate completion time
@@ -3461,7 +3588,7 @@ async function handleProlificCompletion() {
                 const redirectURL = getProlificCompletionURL();
                 logProlificInfo('Redirecting to Prolific', { url: redirectURL });
                 window.location.href = redirectURL;
-            }, 5000); // 5 second delay to show completion message
+            }, 3000); // 3 second delay to show completion message
         }
     } catch (error) {
         console.error('Error handling Prolific completion:', error);
@@ -3469,7 +3596,7 @@ async function handleProlificCompletion() {
         if (PROLIFIC_CONFIG.redirectOnComplete) {
             setTimeout(() => {
                 window.location.href = getProlificCompletionURL();
-            }, 5000);
+            }, 3000);
         }
     }
 }
@@ -3560,6 +3687,38 @@ function showProlificCompletionScreen() {
         mainContent.innerHTML = message;
     } else {
         showStatus(message, 'success', 30000);
+    }
+}
+
+// Show Prolific rejection screen
+function showProlificRejectionScreen(qualityCheck) {
+    // Handle edge case where data might be undefined
+    const scrollPercentage = qualityCheck.scrollPercentage !== undefined ? qualityCheck.scrollPercentage : 0;
+    const readingTimeSeconds = qualityCheck.readingTimeSeconds !== undefined ? qualityCheck.readingTimeSeconds : 0;
+    const { minScrollPercentage, minReadingTimeSeconds } = PROLIFIC_CONFIG.instructionChecks;
+    
+    const message = `
+        <div style="padding: 30px; background: #fff3e0; border: 3px solid #ff9800; border-radius: 12px; text-align: center; max-width: 700px; margin: 50px auto;">
+            <h2 style="color: #e65100; margin-top: 0;">⚠️ Submission Not Accepted</h2>
+            <p style="font-size: 16px; margin: 20px 0;">Unfortunately, you did not pass the attention check for this study.</p>
+            
+            <p style="margin-top: 25px; font-size: 14px; color: #666;">
+                You will be automatically redirected to Prolific in 3 seconds.<br/>
+                Your submission will be marked as incomplete.
+            </p>
+            
+            <p style="margin-top: 20px; font-size: 12px; color: #999;">
+                If you believe this is an error, please contact the researcher through Prolific.
+            </p>
+        </div>
+    `;
+    
+    // Replace entire container with rejection screen
+    const container = document.querySelector('.container');
+    if (container) {
+        container.innerHTML = message;
+    } else {
+        document.body.innerHTML = message;
     }
 }
 

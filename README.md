@@ -7,6 +7,7 @@ A web-based dialogue annotation tool for ESC-ToM (Emotional Support Conversation
 ## Features
 
 - **👥 Prolific Integration**: Seamless integration with Prolific for crowdsourcing (auto-registration, completion tracking, automatic redirect)
+- **🚨 Quality Control**: NEW! Automatic rejection for participants who don't read instructions (scroll < 75% or time < 10s)
 - **🎲 Automatic Assignment**: Each user is automatically assigned 10 unique dialogues upon registration (no overlap between users)
 - **🔄 Revision-Based Workflow**: Ground truth BDI and appraisals are pre-filled for review and revision
 - **✏️ Utterance Editing**: Edit dialogue utterances to fix weird/unclear content
@@ -67,4 +68,5 @@ Want to collect annotations via Prolific? It's fully integrated and ready to use
 - ✅ Completion tracking
 - ✅ Automatic redirect back to Prolific
 - ✅ Built-in completion code display
+- ✅ **NEW: Automatic rejection for poor instruction reading** (configurable)
 - ✅ Quality control features

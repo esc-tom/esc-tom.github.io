@@ -11,6 +11,10 @@ const PROLIFIC_CONFIG = {
     // Prolific completion code from your study
     completionCode: 'CRPEPNRU',
     
+    // Prolific rejection code (use NOCODE for automatic rejection)
+    // You can also create a custom completion code in Prolific for "failed quality checks"
+    rejectionCode: 'NOCODE',
+    
     // Prolific completion URL
     completionURL: 'https://app.prolific.com/submissions/complete',
     
@@ -34,6 +38,26 @@ const PROLIFIC_CONFIG = {
     // Minimum time per dialogue (in seconds) to prevent rushing
     // Set to 0 to disable
     minTimePerDialogue: 0,
+    
+    // Instruction reading quality checks
+    // IMPORTANT: Set enabled to false to disable automatic rejection
+    instructionChecks: {
+        // Enable automatic rejection for poor instruction reading
+        // Set to FALSE to disable this feature and accept all submissions
+        enabled: true,
+        
+        // Minimum scroll percentage required (0-100)
+        minScrollPercentage: 70,
+        
+        // Minimum reading time in seconds
+        minReadingTimeSeconds: 45,
+        
+        // Require BOTH criteria to be met (if false, either one passing is sufficient)
+        requireBoth: true,
+        
+        // Show warning message before rejection
+        showWarning: true
+    },
     
     // Show completion code on screen (in case redirect fails)
     showCompletionCode: true,
@@ -109,6 +133,55 @@ function getProlificCompletionURL() {
     return `${PROLIFIC_CONFIG.completionURL}?cc=${PROLIFIC_CONFIG.completionCode}`;
 }
 
+// Get rejection redirect URL
+function getProlificRejectionURL() {
+    return `${PROLIFIC_CONFIG.completionURL}?cc=${PROLIFIC_CONFIG.rejectionCode}`;
+}
+
+// Check if instruction reading meets quality criteria
+function checkInstructionQuality(instructionData) {
+    if (!PROLIFIC_CONFIG.instructionChecks.enabled) {
+        return { passed: true, reason: null };
+    }
+    
+    if (!instructionData || !instructionData.first_instruction_read) {
+        return { 
+            passed: false, 
+            reason: 'No instruction reading data found' 
+        };
+    }
+    
+    const { scrollPercentage, readingTimeSeconds } = instructionData.first_instruction_read;
+    const { minScrollPercentage, minReadingTimeSeconds, requireBoth } = PROLIFIC_CONFIG.instructionChecks;
+    
+    const scrollPassed = scrollPercentage >= minScrollPercentage;
+    const timePassed = readingTimeSeconds >= minReadingTimeSeconds;
+    
+    let passed;
+    let reason = null;
+    
+    if (requireBoth) {
+        passed = scrollPassed && timePassed;
+        if (!passed) {
+            const reasons = [];
+            if (!scrollPassed) {
+                reasons.push(`insufficient scroll (${scrollPercentage.toFixed(1)}% < ${minScrollPercentage}%)`);
+            }
+            if (!timePassed) {
+                reasons.push(`insufficient reading time (${readingTimeSeconds}s < ${minReadingTimeSeconds}s)`);
+            }
+            reason = reasons.join(', ');
+        }
+    } else {
+        passed = scrollPassed || timePassed;
+        if (!passed) {
+            reason = `both scroll (${scrollPercentage.toFixed(1)}% < ${minScrollPercentage}%) and reading time (${readingTimeSeconds}s < ${minReadingTimeSeconds}s) below thresholds`;
+        }
+    }
+    
+    return { passed, reason, scrollPercentage, readingTimeSeconds };
+}
+
 // Log Prolific info (debug mode)
 function logProlificInfo(message, data = null) {
     if (PROLIFIC_CONFIG.debug) {
@@ -122,5 +195,7 @@ window.isProlificSession = isProlificSession;
 window.getProlificParams = getProlificParams;
 window.generateProlificPassword = generateProlificPassword;
 window.getProlificCompletionURL = getProlificCompletionURL;
+window.getProlificRejectionURL = getProlificRejectionURL;
+window.checkInstructionQuality = checkInstructionQuality;
 window.logProlificInfo = logProlificInfo;
 

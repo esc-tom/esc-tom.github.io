@@ -980,6 +980,68 @@ class FirebaseStorage {
     }
 
     /**
+     * Mark Prolific submission as rejected with reason
+     * @param {string} reason - Reason for rejection
+     * @param {Object} qualityCheckData - Data about the quality check failure
+     * @returns {Promise<boolean>}
+     */
+    async markProlificRejected(reason, qualityCheckData = {}) {
+        if (!this.currentUser) {
+            console.warn('User not authenticated');
+            return false;
+        }
+
+        try {
+            // Get custom user ID (Prolific ID or username)
+            const customUserId = this.getCustomUserId();
+            if (!customUserId) {
+                console.warn('Custom user ID not set, cannot mark Prolific rejected');
+                return false;
+            }
+            
+            await this.db.collection('users').doc(customUserId).update({
+                'prolific.rejectedAt': firebase.firestore.FieldValue.serverTimestamp(),
+                'prolific.status': 'rejected',
+                'prolific.rejectionReason': reason,
+                'prolific.qualityCheckData': qualityCheckData
+            });
+            
+            console.log('Marked Prolific submission as rejected:', reason);
+            return true;
+        } catch (error) {
+            console.error('Error marking Prolific rejected:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get user data including instruction reading stats
+     * @returns {Promise<Object|null>}
+     */
+    async getUserData() {
+        if (!this.currentUser) {
+            return null;
+        }
+
+        try {
+            const customUserId = this.getCustomUserId();
+            if (!customUserId) {
+                return null;
+            }
+            
+            const userDoc = await this.db.collection('users').doc(customUserId).get();
+            if (!userDoc.exists) {
+                return null;
+            }
+            
+            return userDoc.data();
+        } catch (error) {
+            console.error('Error getting user data:', error);
+            return null;
+        }
+    }
+
+    /**
      * Get Prolific data for current user
      * @returns {Promise<Object|null>}
      */

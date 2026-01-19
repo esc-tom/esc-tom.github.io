@@ -365,11 +365,7 @@
                     </div>
                     <div class="warning-point">
                         <span class="warning-bullet">📌</span>
-                        <span class="warning-text">You must <strong>scroll through at least 80% of the instruction content</strong> before proceeding to annotate.</span>
-                    </div>
-                    <div class="warning-point">
-                        <span class="warning-bullet">📌</span>
-                        <span class="warning-text"><strong>Failure to read the instructions properly may result in disqualification</strong> from this annotation task.</span>
+                        <span class="warning-text"><strong>For Prolific participants: Failure to meet reading requirements will result in automatic rejection</strong> of your submission.</span>
                     </div>
                     <div class="warning-point">
                         <span class="warning-bullet">📌</span>
@@ -470,6 +466,11 @@
         <div class="modal-content instruction-modal-content">
             <div class="modal-header">
                 <h2>📚 ESC-ToM Annotation Instructions</h2>
+                <div class="instruction-progress-wrapper">
+                    <div class="instruction-progress-track">
+                        <div class="instruction-progress-fill" id="instruction-progress-fill"></div>
+                    </div>
+                </div>
                 <button id="close-instruction-modal" class="modal-close-btn" aria-label="Close">×</button>
             </div>
             <div class="modal-body instruction-body">
@@ -657,6 +658,14 @@
                     </div>
                 </div>
 
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+                <div style="font-size: 13px; color: #666;">
+                    Scroll through the instructions, then click <strong>Ready to Annotate</strong>.
+                </div>
+                <button id="instruction-understood-btn" class="btn btn-success btn-large">
+                    Ready to Annotate
+                </button>
             </div>
         </div>
 
