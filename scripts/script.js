@@ -44,6 +44,12 @@ let minContextTurnIndex = null; // Tracks which turn provides minimum necessary 
 let modifiedUtterances = {}; // Track modified utterances { turnIndex: { plain, marked } }
 let annotatedIdList = []; // List of already annotated dialogue IDs from annotated_id_list.json
 let appraisalDragCount = 0; // Track number of drag/reorder operations for appraisals
+let dialogueRatings = { // Track dialogue quality ratings
+    realism: 0,
+    persona: 0,
+    bdi: 0,
+    appraisals: 0
+};
 const MAX_APPRAISALS = 5;
 const DIALOGUES_PER_USER = 5; // Number of dialogues to assign per user
 
@@ -57,7 +63,7 @@ const dialogueSelect = document.getElementById('dialogue-select');
 const dialogueContainer = document.getElementById('dialogue-container');
 const progressText = document.getElementById('progress-text');
 const saveBtn = document.getElementById('save-btn');
-const clearBtn = document.getElementById('clear-btn');
+// Clear button removed - clearAnnotations() function kept for internal use
 
 // Annotation inputs
 const beliefInput = document.getElementById('belief');
@@ -235,6 +241,29 @@ async function handleProlificSession() {
         
         if (prolificUser) {
             logProlificInfo('Participant already registered, checking completion status');
+            
+            // If this participant was previously REJECTED, immediately show
+            // the rejection message again and send them back to Prolific.
+            const prolificStatus = prolificUser.prolific?.status;
+            if (prolificStatus === 'rejected') {
+                logProlificInfo('Participant previously rejected - showing rejection message and redirecting');
+                
+                // Show rejection screen (no detailed metrics available here, so pass empty object)
+                showProlificRejectionScreen({
+                    scrollPercentage: prolificUser.first_instruction_read?.scrollPercentage ?? 0,
+                    readingTimeSeconds: prolificUser.first_instruction_read?.readingTimeSeconds ?? 0
+                });
+                
+                // Redirect back to Prolific after short delay
+                if (PROLIFIC_CONFIG.redirectOnComplete) {
+                    setTimeout(() => {
+                        const redirectURL = getProlificRejectionURL();
+                        logProlificInfo('Redirecting to Prolific for previously rejected participant', { url: redirectURL });
+                        window.location.href = redirectURL;
+                    }, 3000); // 3s delay for consistency with other redirects
+                }
+                return;
+            }
             
             // Validate profile is complete
             if (!prolificUser.username || !prolificUser.uid) {
@@ -534,6 +563,7 @@ async function initializeApp() {
     // But first check Firebase to sync the "seen" state correctly
     setTimeout(async () => {
         // Check if user has already recorded instruction read in Firebase
+        let isFirstTimeUser = false;
         if (firebaseStorage) {
             try {
                 const customUserId = firebaseStorage.getCustomUserId() || firebaseStorage.currentUser?.uid;
@@ -544,21 +574,29 @@ async function initializeApp() {
                         // Sync this to localStorage to keep them in sync
                         console.log('User has already recorded instruction read in Firebase, syncing to localStorage');
                         markInstructionsAsSeen();
+                        isFirstTimeUser = false;
                     } else {
                         // User has NOT recorded instruction read in Firebase yet
                         // Clear localStorage to ensure isFirstTime will be true
                         console.log('User has NOT recorded instruction read yet, clearing localStorage to ensure first-time tracking');
                         localStorage.removeItem(STORAGE_KEYS.INSTRUCTIONS_SEEN);
+                        isFirstTimeUser = true;
                     }
                 }
             } catch (error) {
                 console.error('Error checking Firebase for instruction read status:', error);
                 // If we can't check Firebase, clear localStorage to be safe (ensures we track it)
                 localStorage.removeItem(STORAGE_KEYS.INSTRUCTIONS_SEEN);
+                isFirstTimeUser = true;
             }
         }
         
-        showInstructionModal();
+        // Show warning modal for first-time users, otherwise show instructions directly
+        if (isFirstTimeUser) {
+            showFirstTimeWarningModal();
+        } else {
+            showInstructionModal();
+        }
     }, 500); // Small delay to ensure UI is ready
 }
 
@@ -878,13 +916,16 @@ function renderAppraisalOptions() {
 function setupEventListeners() {
     dialogueSelect.addEventListener('change', handleDialogueChange);
     saveBtn.addEventListener('click', saveAnnotation);
-    clearBtn.addEventListener('click', clearAnnotations);
+    // Clear button removed - clearAnnotations() function kept for internal use
     
     // Setup collapsible sections
     setupCollapsibleSections();
     
     // Setup modal listeners
     setupModalListeners();
+    
+    // Setup dialogue rating listeners
+    setupDialogueRatings();
 }
 
 // Setup modal event listeners
@@ -919,6 +960,102 @@ function setupCollapsibleSections() {
     });
 }
 
+// Setup dialogue rating star inputs
+function setupDialogueRatings() {
+    const ratingCategories = ['realism', 'persona', 'bdi', 'appraisals'];
+    
+    ratingCategories.forEach(category => {
+        const container = document.getElementById(`rating-${category}`);
+        const hiddenInput = document.getElementById(`rating-${category}-value`);
+        if (!container || !hiddenInput) return;
+        
+        const stars = container.querySelectorAll('.star');
+        
+        // Click handler
+        stars.forEach(star => {
+            star.addEventListener('click', function() {
+                const value = parseInt(this.getAttribute('data-value'));
+                dialogueRatings[category] = value;
+                hiddenInput.value = value;
+                
+                // Update star display
+                updateStarDisplay(container, value);
+                
+                console.log(`📊 Dialogue rating - ${category}: ${value} stars`);
+            });
+            
+            // Hover effect
+            star.addEventListener('mouseenter', function() {
+                const value = parseInt(this.getAttribute('data-value'));
+                updateStarDisplay(container, value, true);
+            });
+        });
+        
+        // Reset hover effect on mouse leave
+        container.addEventListener('mouseleave', function() {
+            const currentValue = parseInt(hiddenInput.value) || 0;
+            updateStarDisplay(container, currentValue);
+        });
+    });
+}
+
+// Update star display (filled/empty)
+function updateStarDisplay(container, value, isHover = false) {
+    const stars = container.querySelectorAll('.star');
+    stars.forEach((star, index) => {
+        const starValue = parseInt(star.getAttribute('data-value'));
+        if (starValue <= value) {
+            star.textContent = '★';
+            if (isHover) {
+                star.classList.add('hover');
+                star.classList.remove('selected');
+            } else {
+                star.classList.add('selected');
+                star.classList.remove('hover');
+            }
+        } else {
+            star.textContent = '☆';
+            star.classList.remove('hover', 'selected');
+        }
+    });
+}
+
+// Clear dialogue ratings
+function clearDialogueRatings() {
+    dialogueRatings = {
+        realism: 0,
+        persona: 0,
+        bdi: 0,
+        appraisals: 0
+    };
+    
+    const ratingCategories = ['realism', 'persona', 'bdi', 'appraisals'];
+    ratingCategories.forEach(category => {
+        const container = document.getElementById(`rating-${category}`);
+        const hiddenInput = document.getElementById(`rating-${category}-value`);
+        if (container && hiddenInput) {
+            hiddenInput.value = '0';
+            updateStarDisplay(container, 0);
+        }
+    });
+}
+
+// Show dialogue rating section
+function showDialogueRatingSection() {
+    const section = document.getElementById('dialogue-rating-section');
+    if (section) {
+        section.style.display = 'block';
+    }
+}
+
+// Hide dialogue rating section
+function hideDialogueRatingSection() {
+    const section = document.getElementById('dialogue-rating-section');
+    if (section) {
+        section.style.display = 'none';
+    }
+}
+
 // Handle dialogue selection change
 async function handleDialogueChange() {
     const selectedIndex = dialogueSelect.value;
@@ -948,6 +1085,7 @@ async function handleDialogueChange() {
     // Clear and reset
     dialogueContainer.innerHTML = '';
     clearAnnotations();
+    clearDialogueRatings();
     
     // Load ground truth first (pre-populate)
     loadGroundTruth();
@@ -957,6 +1095,9 @@ async function handleDialogueChange() {
     
     // Automatically show exploration phase turns
     showExplorationTurns();
+    
+    // Show dialogue rating section
+    showDialogueRatingSection();
     
     // Enable annotation inputs immediately
     enableAnnotationInputs();
@@ -1469,6 +1610,29 @@ async function loadExistingAnnotation() {
             if (annotation.edit_stats && annotation.edit_stats.appraisal_drag_count !== undefined) {
                 appraisalDragCount = annotation.edit_stats.appraisal_drag_count;
                 console.log(`📊 Restored appraisal drag count: ${appraisalDragCount}`);
+            }
+            
+            // Restore dialogue ratings if they exist
+            if (annotation.dialogue_ratings) {
+                dialogueRatings = {
+                    realism: annotation.dialogue_ratings.realism || 0,
+                    persona: annotation.dialogue_ratings.persona || 0,
+                    bdi: annotation.dialogue_ratings.bdi || 0,
+                    appraisals: annotation.dialogue_ratings.appraisals || 0
+                };
+                
+                // Update the star displays
+                const ratingCategories = ['realism', 'persona', 'bdi', 'appraisals'];
+                ratingCategories.forEach(category => {
+                    const container = document.getElementById(`rating-${category}`);
+                    const hiddenInput = document.getElementById(`rating-${category}-value`);
+                    if (container && hiddenInput && dialogueRatings[category]) {
+                        hiddenInput.value = dialogueRatings[category];
+                        updateStarDisplay(container, dialogueRatings[category]);
+                    }
+                });
+                
+                console.log(`📊 Restored dialogue ratings:`, dialogueRatings);
             }
             
             showStatus('Loaded existing annotation', 'success');
@@ -2025,6 +2189,23 @@ function highlightAppraisalSection() {
     }, 3000);
 }
 
+// Highlight dialogue rating section with error animation
+function highlightDialogueRatingSection() {
+    const ratingSection = document.getElementById('dialogue-rating-section');
+    if (!ratingSection) return;
+    
+    // Add error highlight class
+    ratingSection.classList.add('rating-error-highlight');
+    
+    // Scroll to the section smoothly
+    ratingSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Remove the highlight class after animation completes (3 seconds)
+    setTimeout(() => {
+        ratingSection.classList.remove('rating-error-highlight');
+    }, 3000);
+}
+
 // Save annotation with confirmation
 async function saveAnnotation() {
     if (!currentDialogue) {
@@ -2036,6 +2217,25 @@ async function saveAnnotation() {
     if (minContextTurnIndex === null || minContextTurnIndex === undefined) {
         showStatus('Please select the minimum context turn before saving your annotation.', 'error');
         setTimeout(() => hideStatus(), 3000);
+        return;
+    }
+    
+    // Require all four dialogue ratings to be completed
+    const missingRatings = [];
+    if (dialogueRatings.realism === 0) missingRatings.push('Realism');
+    if (dialogueRatings.persona === 0) missingRatings.push('Persona');
+    if (dialogueRatings.bdi === 0) missingRatings.push('BDI Association');
+    if (dialogueRatings.appraisals === 0) missingRatings.push('Appraisals Association');
+    
+    if (missingRatings.length > 0) {
+        const ratingList = missingRatings.join(', ');
+        showStatus(`Please complete all dialogue quality ratings. Missing: ${ratingList}`, 'error');
+        
+        // Highlight the dialogue rating section with animation
+        highlightDialogueRatingSection();
+        
+        // Show error message for longer (8 seconds)
+        setTimeout(() => hideStatus(), 8000);
         return;
     }
     
@@ -2326,6 +2526,13 @@ async function performSave() {
             appraisals_selected: appraisalsCount,
             // Appraisal reordering operations
             appraisal_drag_count: appraisalDragCount
+        },
+        // Dialogue quality ratings (1-5 stars for each criterion)
+        dialogue_ratings: {
+            realism: dialogueRatings.realism,
+            persona: dialogueRatings.persona,
+            bdi: dialogueRatings.bdi,
+            appraisals: dialogueRatings.appraisals
         },
         timestamp: new Date().toISOString()
     };
@@ -2917,12 +3124,25 @@ function showInstructionModal() {
     const modal = document.getElementById('instruction-modal');
     const modalBody = modal.querySelector('.instruction-body');
     const understoodBtn = document.getElementById('instruction-understood-btn');
+    const progressFill = document.getElementById('instruction-progress-fill');
+    
+    // Reset progress bar when opening
+    if (progressFill) {
+        progressFill.style.width = '0%';
+    }
     
     modal.classList.add('show');
     // Prevent body scroll when modal is open
     document.body.style.overflow = 'hidden';
     // Populate appraisal dimensions dynamically
     populateInstructionAppraisals();
+    
+    // Track start time for first-time instruction reading
+    // Only set if not already set (in case modal is opened/closed multiple times)
+    if (instructionStartTime === null && !hasSeenInstructions()) {
+        instructionStartTime = Date.now();
+        console.log('📖 Started tracking instruction reading time');
+    }
     
     // Keep button enabled (always clickable to track percentage)
     if (understoodBtn) {
@@ -2949,6 +3169,13 @@ function showInstructionModal() {
             if (understoodBtn) {
                 // Store scroll percentage for tracking
                 understoodBtn.dataset.scrollPercentage = scrollPercentage.toFixed(1);
+            }
+            
+            // Update instruction progress bar (smooth via CSS transition)
+            const progressFillEl = document.getElementById('instruction-progress-fill');
+            if (progressFillEl) {
+                const clamped = Math.max(0, Math.min(100, scrollPercentage));
+                progressFillEl.style.width = clamped + '%';
             }
         };
         
@@ -3011,6 +3238,44 @@ let instructionHandlers = {
     understoodHandler: null,
     backdropHandler: null
 };
+
+// Track when instruction modal is first opened (for reading time calculation)
+let instructionStartTime = null;
+
+// Show first-time warning modal
+function showFirstTimeWarningModal() {
+    const modal = document.getElementById('first-time-warning-modal');
+    if (!modal) return;
+    
+    modal.classList.add('show');
+    document.body.style.overflow = 'hidden';
+    
+    // Set up the button listener
+    const understoodBtn = document.getElementById('warning-understood-btn');
+    if (understoodBtn) {
+        // Remove any existing listener
+        const newBtn = understoodBtn.cloneNode(true);
+        understoodBtn.parentNode.replaceChild(newBtn, understoodBtn);
+        
+        // Add click listener to show instructions
+        newBtn.addEventListener('click', () => {
+            hideFirstTimeWarningModal();
+            // Small delay before showing instructions for smooth transition
+            setTimeout(() => {
+                showInstructionModal();
+            }, 300);
+        });
+    }
+}
+
+// Hide first-time warning modal
+function hideFirstTimeWarningModal() {
+    const modal = document.getElementById('first-time-warning-modal');
+    if (!modal) return;
+    
+    modal.classList.remove('show');
+    document.body.style.overflow = 'auto';
+}
 
 function setupInstructionListeners() {
     // Show instruction button
@@ -3096,43 +3361,143 @@ function setupInstructionListeners() {
                 scrollPercentage, 
                 willEnforceCheck: !hasCompletedFirstRead 
             });
-            
-            // Only enforce 80% requirement if this is truly the first time (not resuming/reviewing)
-            if (!hasCompletedFirstRead && scrollPercentage < 80) {
-                // Track the attempt on first read
-                if (isFirstTime && firebaseStorage) {
-                    try {
-                        console.log('Attempting to log instruction read (below threshold)...');
-                        const result = await firebaseStorage.logInstructionReadAttempt(scrollPercentage);
-                        if (result) {
-                            console.log(`⚠️ User attempted to proceed at ${scrollPercentage.toFixed(1)}% (below 80% threshold) - logged to Firebase`);
-                            // Mark as seen since we successfully logged the attempt
-                            markInstructionsAsSeen();
-                        } else {
-                            console.warn('⚠️ Failed to log instruction read attempt to Firebase - will retry next time');
+
+            // ===== ATTENTION CHECK & EARLY REJECTION (BEFORE ANNOTATION) =====
+            //
+            // For Prolific participants, we enforce an instruction-reading attention check
+            // *before* they can proceed to annotation. If they fail, we immediately
+            // reject and redirect back to Prolific, and DO NOT allow annotation.
+            //
+            // For non-Prolific users, we simply block proceeding and show a warning.
+
+            const isProlific = (typeof isProlificSession === 'function') ? isProlificSession() : false;
+
+            // Only enforce attention check if this is truly the first time and first read is not already completed
+            if (!hasCompletedFirstRead && isFirstTime) {
+                // Calculate reading time in seconds
+                const readingTimeSeconds = instructionStartTime !== null 
+                    ? Math.round((Date.now() - instructionStartTime) / 1000) 
+                    : 0;
+
+                const checks = PROLIFIC_CONFIG && PROLIFIC_CONFIG.instructionChecks;
+                const checksEnabled = !!(checks && checks.enabled);
+
+                if (checksEnabled) {
+                    const minScroll = checks.minScrollPercentage ?? 0;
+                    const minTime = checks.minReadingTimeSeconds ?? 0;
+                    const requireBoth = checks.requireBoth !== false; // default true
+
+                    const scrollPassed = scrollPercentage >= minScroll;
+                    const timePassed = readingTimeSeconds >= minTime;
+
+                    let passed;
+                    let reason = null;
+
+                    if (requireBoth) {
+                        passed = scrollPassed && timePassed;
+                        if (!passed) {
+                            const reasons = [];
+                            if (!scrollPassed) {
+                                reasons.push(`insufficient scroll (${scrollPercentage.toFixed(1)}% < ${minScroll}%)`);
+                            }
+                            if (!timePassed) {
+                                reasons.push(`insufficient reading time (${readingTimeSeconds}s < ${minTime}s)`);
+                            }
+                            reason = reasons.join(', ');
                         }
-                    } catch (error) {
-                        console.error('Error logging instruction read attempt:', error);
+                    } else {
+                        passed = scrollPassed || timePassed;
+                        if (!passed) {
+                            reason = `both scroll (${scrollPercentage.toFixed(1)}% < ${minScroll}%) and reading time (${readingTimeSeconds}s < ${minTime}s) below thresholds`;
+                        }
+                    }
+
+                    console.log('Instruction attention check result:', {
+                        isProlific,
+                        scrollPercentage,
+                        readingTimeSeconds,
+                        scrollPassed,
+                        timePassed,
+                        passed,
+                        reason
+                    });
+
+                    if (!passed) {
+                        // Log attempt once in Firebase (for analytics)
+                        if (firebaseStorage) {
+                            try {
+                                console.log('Attempting to log failed instruction attention check...');
+                                await firebaseStorage.logInstructionReadAttempt(scrollPercentage, readingTimeSeconds);
+                            } catch (error) {
+                                console.error('Error logging failed instruction read attempt:', error);
+                            }
+                        }
+
+                        // Close the instruction modal since the attention check failed
+                        // (do this for all users so the rejection/warning is clearly visible)
+                        hideInstructionModal();
+
+                        // For Prolific sessions: immediately reject and redirect, do NOT allow annotation
+                        if (isProlific && firebaseStorage && typeof getProlificRejectionURL === 'function') {
+                            try {
+                                await firebaseStorage.markProlificRejected(reason || 'Failed instruction attention check', {
+                                    scrollPercentage,
+                                    readingTimeSeconds
+                                });
+                            } catch (error) {
+                                console.error('Error marking Prolific rejected after failed attention check:', error);
+                            }
+
+                            // Show rejection screen and redirect
+                            if (typeof showProlificRejectionScreen === 'function') {
+                                showProlificRejectionScreen({
+                                    scrollPercentage,
+                                    readingTimeSeconds
+                                });
+                            }
+
+                            if (PROLIFIC_CONFIG.redirectOnComplete) {
+                                setTimeout(() => {
+                                    const redirectURL = getProlificRejectionURL();
+                                    logProlificInfo('Redirecting to Prolific due to failed attention check', { url: redirectURL });
+                                    window.location.href = redirectURL;
+                                }, 3000); // 3s to read rejection message
+                            }
+
+                            return; // HARD STOP: do not proceed to annotation
+                        }
+
+                        // Non-Prolific or fallback: block proceeding and show warning
+                        showStatus(
+                            `Please read the instructions more carefully before proceeding. ` +
+                            `You've scrolled ${scrollPercentage.toFixed(0)}% (min ${minScroll}%) and read for ${readingTimeSeconds}s (min ${minTime}s).`,
+                            'warning'
+                        );
+                        setTimeout(() => hideStatus(), 6000);
+                        return;
                     }
                 }
-                
-                // Show warning message
-                showStatus(`Please read at least 80% of the instructions before proceeding. You've read ${scrollPercentage.toFixed(0)}% of the content.`, 'warning');
-                setTimeout(() => hideStatus(), 5000);
-                return;
             }
-            
-            // User has read 80% or more (or has already completed first read) - allow proceeding
+
+            // Attention check passed (or not enabled) OR user has already completed first read
+            // Allow proceeding and log successful read once
             let firebaseWriteSuccess = false;
+            
+            // Calculate reading time in seconds
+            const readingTimeSeconds = instructionStartTime !== null 
+                ? Math.round((Date.now() - instructionStartTime) / 1000) 
+                : 0;
             
             // Only log to Firebase if this is truly the first time (hasn't completed first read yet)
             if (!hasCompletedFirstRead && isFirstTime && firebaseStorage) {
                 try {
                     console.log('Attempting to log instruction read (above threshold)...');
-                    const result = await firebaseStorage.logInstructionReadAttempt(scrollPercentage);
+                    const result = await firebaseStorage.logInstructionReadAttempt(scrollPercentage, readingTimeSeconds);
                     if (result) {
-                        console.log(`✅ Logged instruction read: ${scrollPercentage.toFixed(1)}% - synced to Firebase`);
+                        console.log(`✅ Logged instruction read: ${scrollPercentage.toFixed(1)}% in ${readingTimeSeconds}s - synced to Firebase`);
                         firebaseWriteSuccess = true;
+                        // Reset the start time after successful logging
+                        instructionStartTime = null;
                     } else {
                         console.warn('⚠️ Failed to log instruction read to Firebase');
                     }
@@ -3201,6 +3566,9 @@ function handleLogout() {
 // ========== PROLIFIC INTEGRATION FUNCTIONS ==========
 
 // Handle Prolific study completion
+// NOTE: Instruction-reading attention checks are enforced EARLIER,
+// at the instruction modal stage. We do NOT reject here after
+// annotations are completed.
 async function handleProlificCompletion() {
     try {
         // Calculate completion time
@@ -3220,7 +3588,7 @@ async function handleProlificCompletion() {
                 const redirectURL = getProlificCompletionURL();
                 logProlificInfo('Redirecting to Prolific', { url: redirectURL });
                 window.location.href = redirectURL;
-            }, 5000); // 5 second delay to show completion message
+            }, 3000); // 3 second delay to show completion message
         }
     } catch (error) {
         console.error('Error handling Prolific completion:', error);
@@ -3228,7 +3596,7 @@ async function handleProlificCompletion() {
         if (PROLIFIC_CONFIG.redirectOnComplete) {
             setTimeout(() => {
                 window.location.href = getProlificCompletionURL();
-            }, 5000);
+            }, 3000);
         }
     }
 }
@@ -3319,6 +3687,38 @@ function showProlificCompletionScreen() {
         mainContent.innerHTML = message;
     } else {
         showStatus(message, 'success', 30000);
+    }
+}
+
+// Show Prolific rejection screen
+function showProlificRejectionScreen(qualityCheck) {
+    // Handle edge case where data might be undefined
+    const scrollPercentage = qualityCheck.scrollPercentage !== undefined ? qualityCheck.scrollPercentage : 0;
+    const readingTimeSeconds = qualityCheck.readingTimeSeconds !== undefined ? qualityCheck.readingTimeSeconds : 0;
+    const { minScrollPercentage, minReadingTimeSeconds } = PROLIFIC_CONFIG.instructionChecks;
+    
+    const message = `
+        <div style="padding: 30px; background: #fff3e0; border: 3px solid #ff9800; border-radius: 12px; text-align: center; max-width: 700px; margin: 50px auto;">
+            <h2 style="color: #e65100; margin-top: 0;">⚠️ Submission Not Accepted</h2>
+            <p style="font-size: 16px; margin: 20px 0;">Unfortunately, you did not pass the attention check for this study.</p>
+            
+            <p style="margin-top: 25px; font-size: 14px; color: #666;">
+                You will be automatically redirected to Prolific in 3 seconds.<br/>
+                Your submission will be marked as incomplete.
+            </p>
+            
+            <p style="margin-top: 20px; font-size: 12px; color: #999;">
+                If you believe this is an error, please contact the researcher through Prolific.
+            </p>
+        </div>
+    `;
+    
+    // Replace entire container with rejection screen
+    const container = document.querySelector('.container');
+    if (container) {
+        container.innerHTML = message;
+    } else {
+        document.body.innerHTML = message;
     }
 }
 

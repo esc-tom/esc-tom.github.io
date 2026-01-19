@@ -184,11 +184,11 @@
                         </div>
                         <div class="instruction-step">
                             <span class="step-number">2</span>
-                            <span class="step-text"><strong>Revise the AI-generated BDI</strong> (Belief, Desire, Intention) on the right. <span style="color: #d9534f; font-weight: bold;"><strong>(CORE TASK)</strong></span></span>
+                            <span class="step-text"><strong>Revise the AI-generated BDI</strong> (Belief, Desire, Intention) on the right. <span style="color: #d9534f; font-weight: bold;">CORE TASK</span></span>
                         </div>
                         <div class="instruction-step">
                             <span class="step-number">3</span>
-                            <span class="step-text"><strong>Revise the AI-generated cognitive appraisals</strong> on the right. <span style="color: #d9534f; font-weight: bold;"><strong>(CORE TASK)</strong></span></span>
+                            <span class="step-text"><strong>Revise the AI-generated cognitive appraisals</strong> on the right. <span style="color: #d9534f; font-weight: bold;">CORE TASK</span></span>
                         </div>
                         <div class="instruction-step" style="opacity: 0.7;">
                             <span class="step-number" style="background: #f59e0b; border-radius: 12px; min-width: auto; width: auto; padding: 0 10px; font-size: 12px;">Optional</span>
@@ -196,7 +196,7 @@
                         </div>
                         <div class="instruction-step">
                             <span class="step-number">4</span>
-                            <span class="step-text"><strong>Rate the dialogue quality</strong> at the bottom of the page. <span style="color: #d9534f; font-weight: bold;"><strong>(CORE TASK)</strong></span></span>
+                            <span class="step-text"><strong>Rate the dialogue quality</strong> at the bottom of the page. <span style="color: #d9534f; font-weight: bold;">CORE TASK</span></span>
                         </div>
                         <div class="instruction-step">
                             <span class="step-number">5</span>
@@ -337,6 +337,7 @@
         <!-- Action Buttons (Full Width) -->
         <div class="action-buttons-fullwidth">
             <button id="save-btn" class="btn btn-success" disabled>💾 Save Annotation</button>
+            <button id="clear-btn" class="btn btn-warning">🔄 Clear Annotations</button>
         </div>
     </div>
 
@@ -365,7 +366,11 @@
                     </div>
                     <div class="warning-point">
                         <span class="warning-bullet">📌</span>
-                        <span class="warning-text"><strong>For Prolific participants: Failure to meet reading requirements will result in automatic rejection</strong> of your submission.</span>
+                        <span class="warning-text">You must <strong>scroll through at least 80% of the instruction content</strong> before proceeding to annotate.</span>
+                    </div>
+                    <div class="warning-point">
+                        <span class="warning-bullet">📌</span>
+                        <span class="warning-text"><strong>Failure to read the instructions properly may result in disqualification</strong> from this annotation task.</span>
                     </div>
                     <div class="warning-point">
                         <span class="warning-bullet">📌</span>
@@ -466,11 +471,6 @@
         <div class="modal-content instruction-modal-content">
             <div class="modal-header">
                 <h2>📚 ESC-ToM Annotation Instructions</h2>
-                <div class="instruction-progress-wrapper">
-                    <div class="instruction-progress-track">
-                        <div class="instruction-progress-fill" id="instruction-progress-fill"></div>
-                    </div>
-                </div>
                 <button id="close-instruction-modal" class="modal-close-btn" aria-label="Close">×</button>
             </div>
             <div class="modal-body instruction-body">
@@ -491,9 +491,12 @@
                                 <li style="margin-bottom: 0.3em;"><strong>Intention:</strong> What the patient planned to do before the bothering event occurred.</li>
                             </ul>
                         </li>
-                        <li><strong>Cognitive Appraisals:</strong> Aspects of how the patient subjectively perceives their situation <strong>after the bothering event occurred.</strong> These appraisals should <strong>make sense given the patient's pre-event BDI</strong> - meaning the way they think about the event should logically connect to what they believed, wanted, or planned before the event happened. There will be 14 aspects which are defined in the later part of the instructions.</li>
-                        <li><strong>Minimum Context Turn:</strong> The earliest turn of the dialogue where there is enough information to accurately deduce the patient's mental state (including both BDI and cognitive appraisals).</li>
+                        <li><strong>Cognitive Appraisals:</strong> How the patient subjectively evaluates their situation <strong>after the bothering event occurred.</strong> These appraisals should <strong>make sense given the patient's pre-event BDI</strong> - meaning the way they think about the event should logically connect to what they believed, wanted, or planned before the event happened. There will be 14 cognitive appraisal dimensions which are defined in the later part of the instructions.</li>
+                        <li><strong>Minimum Context Turn:</strong> The earliest turn of the dialogue where there is enough information to accurately deduce the patient's mental state (incl. both BDI and cognitive appraisals). <em>Note: Up to 12 turns are displayed, which is typically sufficient for this task.</em></li>
                     </ul>
+                    <p style="background: #e7f3ff; padding: 10px; border-left: 4px solid #2196F3; border-radius: 4px; margin-top: 10px;">
+                        <strong>Note:</strong> Up to 12 turns of dialogue are displayed and are sufficient for understanding the bothering event and revising the pre-event BDI and post-event appraisals. Additional turns beyond the 12th are omitted for clarity.
+                    </p>
                 </div>
 
                 <div class="instruction-section">
@@ -525,7 +528,7 @@
                         <div class="workflow-task">
                             <div class="workflow-task-header">
                                 <span class="workflow-number">2</span>
-                                <strong>Revise BDI</strong> <span style="color: #d9534f; font-size: 0.9em;"><strong>(CORE TASK)</strong></span>
+                                <strong>Revise BDI</strong> <span style="color: #d9534f; font-size: 0.9em;">(CORE TASK)</span>
                             </div>
                             <p class="workflow-description"><strong>Goal:</strong> Revise the patient's pre-event BDI. Ensure the annotations reflect the patient's belief, desire, and intention <strong>right before the event</strong>. Do not confuse it with the patient's BDI after the event has taken place.</p>
                             <p style="margin-top: 10px;"><strong>Logic:</strong> Negative emotions are often triggered when an event conflicts with a person's Beliefs, Desires, and Intentions (BDI).</p>
@@ -564,7 +567,7 @@
                         <div class="workflow-task">
                             <div class="workflow-task-header">
                                 <span class="workflow-number">3</span>
-                                <strong>Revise Appraisals</strong> <span style="color: #d9534f; font-size: 0.9em;"><strong>(CORE TASK)</strong></span>
+                                <strong>Revise Appraisals</strong> <span style="color: #d9534f; font-size: 0.9em;">(CORE TASK)</span>
                             </div>
                             <p class="workflow-description"><strong>Goal:</strong> Select the <strong>Top 5</strong> appraisal dimensions based on evidence. These dimensions describe how the patient evaluates the situation <strong>after the bothering event occurred.</strong></p>
                             <p style="background: #fff3cd; padding: 12px; border-left: 4px solid #ffc107; border-radius: 4px; margin: 12px 0;">
@@ -634,8 +637,8 @@
                     <h3>Quality Checklist</h3>
                     <p>Before clicking "Save Annotation," ask yourself:</p>
                     <ul class="instruction-checklist">
-                        <li><strong>Is the BDI Pre-Event?</strong><br>Do the Beliefs and Desires describe how they felt before the issue started? <span style="color: #d9534f;"><strong>(CORE TASK)</strong></span></li>
-                        <li><strong>Are Appraisals Supported?</strong><br>Do the 5 selected dimensions match the patient's specific words? Do they make sense given the pre-event BDI? <span style="color: #d9534f;"><strong>(CORE TASK)</strong></span></li>
+                        <li><strong>Is the BDI Pre-Event?</strong><br>Do the Beliefs and Desires describe how they felt before the issue started? <span style="color: #d9534f;">(CORE TASK)</span></li>
+                        <li><strong>Are Appraisals Supported?</strong><br>Do the 5 selected dimensions match the patient's specific words? Do they make sense given the pre-event BDI? <span style="color: #d9534f;">(CORE TASK)</span></li>
                         <li><strong>Is the Context Precise?</strong><br>Is the green checkmark on the earliest possible turn?</li>
                         <li><strong>Is the Text Clean?</strong><br>Did I fix any extremely wrong content (only if necessary)?</li>
                         <li><strong>Have I Rated the Dialogue?</strong><br>Did I provide star ratings for all 4 quality criteria at the bottom of the page?</li>
@@ -659,14 +662,6 @@
                 </div>
 
             </div>
-            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-                <div style="font-size: 13px; color: #666;">
-                    Scroll through the instructions, then click <strong>Ready to Annotate</strong>.
-                </div>
-                <button id="instruction-understood-btn" class="btn btn-success btn-large">
-                    Ready to Annotate
-                </button>
-            </div>
         </div>
 
     </div>
@@ -680,6 +675,119 @@
         </div>
     </div>
 
+    <!-- First-Time User Warning Modal --> Negative emotions are often triggered when an event conflicts with a person’s Beliefs, Desires, and Intentions (BDI).</p>
+                    <p><strong>Instruction:</strong> Revise the patient's BDI to ensure it logically explains their interpretation of the event. The BDI you write should help explain why the patient reacted the way they did - meaning their pre-event thoughts should connect to how they appraised the event afterward.</p>
+            
+                    <table class="instruction-table" style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
+                        <thead style="background: #f4f4f4;">
+                            <tr>
+                                <th style="padding: 8px; text-align: left;">Component</th>
+                                <th style="padding: 8px; text-align: left;">❌ Needs Revision</th>
+                                <th style="padding: 8px; text-align: left;">✅ Better Version</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Belief</strong><br><small>(Specific truth)</small></td>
+                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">"I believe that I am an important person."</td>
+                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">"I believe that my family members care about my wellbeing."</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px; border-bottom: 1px solid #ddd;"><strong>Desire</strong><br><small>(Pre-event want)</small></td>
+                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">"I wish that I can pass the exam."</td>
+                                <td style="padding: 8px; border-bottom: 1px solid #ddd;">"I wish that I can get a good score on the exam and get into a top university."</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 8px;"><strong>Intention</strong><br><small>(Actionable plan)</small></td>
+                                <td style="padding: 8px;">"I intend to fix it."</td>
+                                <td style="padding: 8px;">"I intend to read through the user manual and figure out how to repair the broken espresso machine."</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            
+                <div class="instruction-section">
+                    <h3>Task 3: Revise Appraisals <span style="color: #d9534f;">(CORE TASK)</span></h3>
+                    <p><strong>Goal:</strong> Select the <strong>Top 5</strong> dimensions based on evidence.</p>
+                    
+                    <p style="background: #fff3cd; padding: 12px; border-left: 4px solid #ffc107; border-radius: 4px; margin: 16px 0;">
+                        <strong>⚠️ Important:</strong> The cognitive appraisals you select should <strong>make sense given the patient's pre-event BDI</strong>. Think about it this way: if the patient believed something, wanted something, or planned something before the event, their reaction to the event (the appraisals) should logically connect to those pre-event thoughts. For example, if someone believed their family cared about them, and then their family ignored them, they might appraise it as "unfair" or "unexpected" - these appraisals make sense given their pre-event belief.
+                    </p>
+                    
+                    <ul class="instruction-list">
+                        <li><strong>ADD</strong> if dialogue clearly supports it (e.g., <em>"I have no idea what happens next"</em> &rarr; <strong>Unpredictability</strong>).</li>
+                        <li><strong>REMOVE</strong> if dialogue contradicts it (e.g., <em>"It's out of my hands"</em> &rarr; Remove <strong>Self Control</strong>).</li>
+                        <li><strong>CHECK</strong> that your selected appraisals logically connect to the pre-event BDI you revised in Task 2.</li>
+                    </ul>
+            
+                    <p><strong>Available Appraisal Dimensions:</strong></p>
+                    <div class="instruction-appraisals-table-wrapper">
+                        <table id="instruction-appraisals-table" class="instruction-appraisals-table">
+                            <thead>
+                                <tr>
+                                    <th>Dimension</th>
+                                    <th>Definition</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Appraisal dimensions will be populated dynamically from cognitive_dimensions.json -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="instruction-section optional-section">
+                    <h3>Optional: Edit Utterances (Only if Extremely Wrong)</h3>
+                    <p><strong>Note:</strong> Dialogue editing is <strong>optional</strong> and should only be done when the content is <strong>extremely wrong</strong>. Your main focus should be on revising BDI and cognitive appraisals.</p>
+                    <p><strong>When to Edit:</strong> Only fix content that is:</p>
+                    <ul class="instruction-list">
+                        <li><strong>Physically impossible scenarios</strong> (e.g., seeing something that cannot be seen from the current location)</li>
+                        <li><strong>Direct contradictions</strong> that make the dialogue nonsensical</li>
+                        <li><strong>Garbled text</strong> that destroys meaning (not minor typos)</li>
+                    </ul>
+                    <p><strong>Do NOT edit:</strong> Natural slang, pauses, minor stylistic preferences, or grammatically correct sentences.</p>
+                    <div class="instruction-example" style="background: #f9f9f9; padding: 10px; border-left: 4px solid #ccc; margin-top: 10px;">
+                        <strong>Example Utterance:</strong> "I saw my son getting bullied at school while I was in a meeting with my boss."<br>
+                        <strong>Issue:</strong> Physically impossible to see the school while in an office meeting.<br>
+                        <strong>Fix:</strong> "I <strong>was informed</strong> that my son was bullied at school while I was in a meeting with my boss."
+                    </div>
+                    <div class="workflow-howto-no-margin">
+                        <strong>How to Edit:</strong> Hover over the utterance and click "Edit". Modify the text and click "Save". (The text will show a yellow highlight and an (edited) marker).
+                    </div>
+                </div>
+
+                <div class="instruction-section">
+                    <h3>Quality Checklist</h3>
+                    <p>Before clicking "Save Annotation," ask yourself:</p>
+                    <ul class="instruction-checklist">
+                        <li><strong>Is the BDI Pre-Event?</strong><br>Do the Beliefs and Desires describe how they felt before the issue started? <span style="color: #d9534f;">(CORE TASK)</span></li>
+                        <li><strong>Are Appraisals Supported?</strong><br>Do the 5 selected dimensions match the patient's specific words? Do they make sense given the pre-event BDI? <span style="color: #d9534f;">(CORE TASK)</span></li>
+                        <li><strong>Is the Context Precise?</strong><br>Is the green checkmark on the earliest possible turn?</li>
+                        <li><strong>Is the Text Clean?</strong><br>Did I fix any extremely wrong content (only if necessary)?</li>
+                        <li><strong>Have I Rated the Dialogue?</strong><br>Did I provide star ratings for all 4 quality criteria at the bottom of the page?</li>
+                    </ul>
+                </div>
+
+                <div class="instruction-section">
+                    <h3>FAQs</h3>
+                    <div class="faq-item">
+                        <p><strong>Do I have to change everything?</strong></p>
+                        <p>No. If the pre-filled BDI is already accurate, you can leave it as is and focus on carefully choosing the top 5 appraisals that best match the dialogue.</p>
+                    </div>
+                    <div class="faq-item">
+                        <p><strong>How long should this take?</strong></p>
+                        <p>Roughly 3-5 minutes per dialogue. You don't need to edit the dialogue content unless it is extremely wrong.</p>
+                    </div>
+                    <div class="faq-item">
+                        <p><strong>What if I accidentally closed the annotation website?</strong></p>
+                        <p>Don't worry. Return to the prolific study page and click the same link to resume your annotation.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="instruction-understood-btn" class="btn btn-success btn-large">Got it, let's start!</button>
+            </div>
+        </div>
     </div>
 
     <!-- Firebase SDKs -->

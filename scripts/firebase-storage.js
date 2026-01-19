@@ -980,6 +980,68 @@ class FirebaseStorage {
     }
 
     /**
+     * Mark Prolific submission as rejected with reason
+     * @param {string} reason - Reason for rejection
+     * @param {Object} qualityCheckData - Data about the quality check failure
+     * @returns {Promise<boolean>}
+     */
+    async markProlificRejected(reason, qualityCheckData = {}) {
+        if (!this.currentUser) {
+            console.warn('User not authenticated');
+            return false;
+        }
+
+        try {
+            // Get custom user ID (Prolific ID or username)
+            const customUserId = this.getCustomUserId();
+            if (!customUserId) {
+                console.warn('Custom user ID not set, cannot mark Prolific rejected');
+                return false;
+            }
+            
+            await this.db.collection('users').doc(customUserId).update({
+                'prolific.rejectedAt': firebase.firestore.FieldValue.serverTimestamp(),
+                'prolific.status': 'rejected',
+                'prolific.rejectionReason': reason,
+                'prolific.qualityCheckData': qualityCheckData
+            });
+            
+            console.log('Marked Prolific submission as rejected:', reason);
+            return true;
+        } catch (error) {
+            console.error('Error marking Prolific rejected:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get user data including instruction reading stats
+     * @returns {Promise<Object|null>}
+     */
+    async getUserData() {
+        if (!this.currentUser) {
+            return null;
+        }
+
+        try {
+            const customUserId = this.getCustomUserId();
+            if (!customUserId) {
+                return null;
+            }
+            
+            const userDoc = await this.db.collection('users').doc(customUserId).get();
+            if (!userDoc.exists) {
+                return null;
+            }
+            
+            return userDoc.data();
+        } catch (error) {
+            console.error('Error getting user data:', error);
+            return null;
+        }
+    }
+
+    /**
      * Get Prolific data for current user
      * @returns {Promise<Object|null>}
      */
@@ -1434,8 +1496,8 @@ class FirebaseStorage {
      * @param {number} scrollPercentage - Percentage of instructions read (0-100)
      * @returns {Promise<boolean>}
      */
-    async logInstructionReadAttempt(scrollPercentage) {
-        console.log('logInstructionReadAttempt called with:', scrollPercentage);
+    async logInstructionReadAttempt(scrollPercentage, readingTimeSeconds = 0) {
+        console.log('logInstructionReadAttempt called with:', { scrollPercentage, readingTimeSeconds });
         
         if (!this.currentUser || !this.currentUser.uid) {
             console.warn('User not authenticated, cannot log instruction read attempt');
@@ -1483,13 +1545,14 @@ class FirebaseStorage {
             await userDocRef.set({
                 first_instruction_read: {
                     scrollPercentage: scrollPercentage,
+                    readingTimeSeconds: readingTimeSeconds,
                     timestamp: firebase.firestore.FieldValue.serverTimestamp(),
                     reachedBottom: scrollPercentage >= 99.5 // Consider 99.5%+ as reached bottom
                 },
                 lastUpdatedAt: firebase.firestore.FieldValue.serverTimestamp()
             }, { merge: true }); // Use merge to avoid overwriting other fields
             
-            console.log(`✅ Successfully saved first instruction read: ${scrollPercentage.toFixed(1)}% to Firebase`);
+            console.log(`✅ Successfully saved first instruction read: ${scrollPercentage.toFixed(1)}%, ${readingTimeSeconds}s to Firebase`);
             return true;
         } catch (error) {
             console.error('❌ Error logging instruction read attempt:', error);
