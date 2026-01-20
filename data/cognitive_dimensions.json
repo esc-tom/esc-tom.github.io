@@ -1,16 +1,16 @@
 [
   {"suddenness": "The patient finds the situation sudden or abrupt."},
   {"unfamiliarity": "The patient finds the situation unfamiliar."},
-  {"predictability_of_event": "The patient predicted the occurrence of the situation."},
+  {"predictability_of_event": "The patient was expecting the situation to happen."},
   {"unpredictability_of_event": "The patient wasn't expecting the occurrence of the situation."},
-  {"goal_incongruence": "The outcome is not aligned with the patient's personal goals/desires."},
-  {"predictability_of_consequences": "The patient anticipated the consequences of the situation."},
-  {"unpredictability_of_consequences": "The patient didn't anticipate the consequences of the situation."},
+  {"goal_incongruence": "The outcome is not aligned with the patient's goals/desires."},
+  {"predictability_of_consequences": "The patient can easily anticipate the consequences of the situation."},
+  {"unpredictability_of_consequences": "The patient had no idea about what the consequences of the situation would be."},
   {"self_cause": "The patient caused the situation themselves."},
   {"other_cause": "Someone/Something other than the patient caused the situation."},
   {"self_control": "The patient has control over what is going on in the situation."},
-  {"other_control": "Someone other than the patient has control over what is going on in the situation."},
-  {"norm_violation": "The situation violated the patient's standards and ideals."},
+  {"other_control": "Someone/Something other than the patient has control over what is going on in the situation."},
+  {"norm_violation": "The actions that produced the situation violated the patient's standards and ideals."},
   {"coping_demand": "The patient has to spend a great deal of (physical or mental) energy to handle the outcome of the situation."},
   {"unacceptable_consequences": "The consequences of the situation are unbearable for the patient."}
 ]
