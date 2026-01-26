@@ -162,7 +162,10 @@ async function init() {
         }
 
         // If auth exists but no profile, force logout and show login
-        await firebaseStorage.logout();
+        if (currentUsername) {
+            localStorage.removeItem(STORAGE_KEYS.TOUR_SEEN);
+            await firebaseStorage.logout();
+        }
     }
 
     // No authenticated user; show login modal
@@ -768,9 +771,52 @@ async function handleSonaSession() {
     }
 }
 
+// Helper to sync user progress (instructions read, tour seen) from Firebase to LocalStorage
+async function syncUserProgress() {
+    if (!firebaseStorage) return;
+
+    try {
+        const customUserId = firebaseStorage.getCustomUserId() || firebaseStorage.currentUser?.uid;
+        if (customUserId) {
+            const userDoc = await firebaseStorage.db.collection('users').doc(customUserId).get();
+
+            if (userDoc.exists) {
+                // Sync Instructions Seen
+                if (userDoc.data().first_instruction_read) {
+                    console.log('Syncing instructions read status from Firebase');
+                    localStorage.setItem(STORAGE_KEYS.INSTRUCTIONS_SEEN, 'true');
+                } else {
+                    // Not seen in Firebase, clear local to be safe (unless we want local to win?)
+                    // Safest to clear if we treat Firebase as source of truth for "first time"
+                    console.log('Instructions not marked read in Firebase');
+                }
+
+                // Sync Tour Seen - STRICT MODE
+                if (userDoc.data().tour_seen) {
+                    console.log('Syncing tour completion from Firebase: TRUE');
+                    localStorage.setItem(STORAGE_KEYS.TOUR_SEEN, '1');
+                } else {
+                    // Critical for multi-user device usage:
+                    // If Firebase says FALSE (or undefined), trust it and clear local state.
+                    console.log('Syncing tour completion from Firebase: FALSE (clearing local)');
+                    localStorage.removeItem(STORAGE_KEYS.TOUR_SEEN);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error syncing user progress:', error);
+    }
+}
+
 // Initialize the main app after login
 async function initializeApp() {
     updateUserBadge();
+
+    // Sync user progress (tour & instructions) BEFORE doing anything else UI-related
+    await syncUserProgress();
+
+    // Show instructions immediately after sync found the user state
+    showInstructionModal();
 
     // Load dialogues if not already loaded (e.g., during direct login from saved session)
     if (allDialogues.length === 0) {
@@ -795,42 +841,6 @@ async function initializeApp() {
         dialogueSelect.value = indexToLoad;
         await handleDialogueChange();
     }
-
-    // Always show instructions when user logs in
-    // But first check Firebase to sync the "seen" state correctly
-    setTimeout(async () => {
-        // Check if user has already recorded instruction read in Firebase
-        let isFirstTimeUser = false;
-        if (firebaseStorage) {
-            try {
-                const customUserId = firebaseStorage.getCustomUserId() || firebaseStorage.currentUser?.uid;
-                if (customUserId) {
-                    const userDoc = await firebaseStorage.db.collection('users').doc(customUserId).get();
-                    if (userDoc.exists && userDoc.data().first_instruction_read) {
-                        // User has already recorded instruction read in Firebase
-                        // Sync this to localStorage to keep them in sync
-                        console.log('User has already recorded instruction read in Firebase, syncing to localStorage');
-                        markInstructionsAsSeen();
-                        isFirstTimeUser = false;
-                    } else {
-                        // User has NOT recorded instruction read in Firebase yet
-                        // Clear localStorage to ensure isFirstTime will be true
-                        console.log('User has NOT recorded instruction read yet, clearing localStorage to ensure first-time tracking');
-                        localStorage.removeItem(STORAGE_KEYS.INSTRUCTIONS_SEEN);
-                        isFirstTimeUser = true;
-                    }
-                }
-            } catch (error) {
-                console.error('Error checking Firebase for instruction read status:', error);
-                // If we can't check Firebase, clear localStorage to be safe (ensures we track it)
-                localStorage.removeItem(STORAGE_KEYS.INSTRUCTIONS_SEEN);
-                isFirstTimeUser = true;
-            }
-        }
-
-        // Show instructions directly (warning modal removed)
-        showInstructionModal();
-    }, 500); // Small delay to ensure UI is ready
 }
 
 // -----------------------------
@@ -843,7 +853,9 @@ let tourState = {
     highlight: null,
     tooltip: null,
     activeTarget: null,
-    virtualCursor: null
+    virtualCursor: null,
+    audioFinished: false,
+    animationFinished: true
 };
 
 function setupTour() {
@@ -853,68 +865,86 @@ function setupTour() {
             selector: '#dialogue-select',
             title: 'Dialogue Selection',
             body: 'When finishing an annotation, the next dialogue is automaically loaded for you. Use this dropdown if you wish to check your previous annotations.',
-            placement: 'right'
+            placement: 'right',
+            audio: 'assets/audios/demo-1.wav'
         },
         {
             selector: '.header-actions',
             title: 'User Info & Instructions',
             body: 'Your username is displayed here. You can also click the Instructions button to review the annotation guidelines at any time.',
-            placement: 'bottom'
+            placement: 'bottom',
+            audio: 'assets/audios/demo-2.wav'
         },
         {
             selector: '.progress-section',
             title: 'Progress Bar',
             body: 'This progress bar shows your annotation completion status across all assigned dialogues.',
-            placement: 'bottom'
+            placement: 'bottom',
+            audio: 'assets/audios/demo-3.wav'
         },
         {
             selector: '#persona-section',
             title: 'Patient profile',
             body: 'Review the patient\'s profile (name, occupation, Big Five traits) to keep your annotations consistent with their persona.',
-            placement: 'right'
+            placement: 'right',
+            audio: 'assets/audios/demo-4.wav'
         },
         {
             selector: '#dialogue-container',
             title: 'Mark minimum context',
-            body: 'Read from the start and click the earliest turn pair where you have enough information to annotate.',
-            placement: 'right'
+            body: 'Read from the start and click the earliest turn pair where you have enough information to annotate.<br><br><b>BDI</b> <i>(noun)</i>: The patient\'s mental state (Belief, Desire, Intention) <b>before</b> the bothering event occurred.<br><br><b>Cognitive Appraisal</b> <i>(noun)</i>: How the patient subjectively perceives their situation <b>after</b> the event.',
+            placement: 'right',
+            audio: 'assets/audios/demo-5.wav'
         },
         {
             selector: '#bdi-section',
             title: 'Revise BDI',
-            body: 'Revise Belief/Desire/Intention so they reflect the patient’s PRE-event mindset (right before the bothering event).',
+            body: '<b>BDI</b> <i>(noun)</i>: The patient\'s mental state (Belief, Desire, Intention) <b>before</b> the bothering event occurred.<br><br>Revise these fields to reflect the patient’s PRE-event mindset.',
             placement: 'bottom',
-            scrollOffset: -350
+            scrollOffset: -350,
+            audio: 'assets/audios/demo-6.wav'
         },
         {
             selector: '#appraisals-section',
             title: 'Step 2.1: Select Appraisal Descriptions',
-            body: 'Select the descriptions that best explain the emergence of patient\'s negative emotions.',
-            placement: 'top'
+            body: '<b>Cognitive Appraisal</b> <i>(noun)</i>: How the patient subjectively perceives their situation <b>after</b> the event.<br><br>Select the descriptions that best explain the emergence of the patient\'s negative emotions.',
+            placement: 'top',
+            audio: 'assets/audios/demo-7-1.wav'
         },
         {
             selector: '#appraisals-section',
             title: 'Step 2.2: Select Appraisal Dimensions',
-            body: 'Select the appraisal dimensions under each description. The selected 5 dimensions should be the most salient to the patient\'s emotional reaction.',
-            placement: 'top'
+            body: '<b>Cognitive Appraisal</b> <i>(noun)</i>: How the patient subjectively perceives their situation <b>after</b> the event.<br><br>Select the appraisal dimensions under each description.',
+            placement: 'top',
+            audio: 'assets/audios/demo-7-2.wav'
         },
         {
             selector: '#selected-appraisals',
             title: 'Step 2.3: Rank Appraisal Dimensions',
             body: 'Drag to rank the dimensions by dragging (1 = most important).',
-            placement: 'top'
+            placement: 'top',
+            audio: 'assets/audios/demo-7-3.wav'
         },
         {
             selector: '#dialogue-rating-section',
             title: 'Rate quality',
             body: 'Provide 1-5 star ratings for realism, persona, BDI, and appraisals.',
-            placement: 'top'
+            placement: 'top',
+            audio: 'assets/audios/demo-8.wav'
         },
         {
             selector: '#save-btn',
             title: 'Save your work',
             body: 'Click Save. You’ll see a confirmation dialog—review the summary and confirm to submit.',
-            placement: 'left'
+            placement: 'left',
+            audio: 'assets/audios/demo-9.wav'
+        },
+        {
+            selector: 'header',
+            title: 'Thank You!',
+            body: 'Thank you for going through the demo and taking part in the study.',
+            placement: 'center',
+            audio: 'assets/audios/demo-end.wav'
         }
     ];
 }
@@ -925,6 +955,21 @@ function startTour(force = false) {
     tourState.stepIndex = 0;
     showTourStep();
     startCursorAutoScroll(); // Start monitoring cursor visibility
+}
+
+function checkAdvanceCondition() {
+    // If either audio or animation is still running, do not enable button
+    if (!tourState.audioFinished || !tourState.animationFinished) {
+        return;
+    }
+
+    const nextBtn = tourState.tooltip?.querySelector('.tour-next');
+    if (!nextBtn) return;
+
+    const originalText = tourState.stepIndex === tourState.steps.length - 1 ? 'Finish' : 'Next';
+    nextBtn.textContent = originalText;
+    nextBtn.disabled = false;
+    nextBtn.classList.remove('disabled');
 }
 
 function createTourElements() {
@@ -1069,7 +1114,12 @@ function showTourStep() {
     } else if (step.selector === '#appraisals-section') {
         // Animation runs automatically based on step
         if (tourState.stepIndex === 6) {
-            animateCategorySelection();
+            // Delay animation by 4 seconds to sync with audio
+            setTimeout(() => {
+                if (tourState.stepIndex === 6) {
+                    animateCategorySelection();
+                }
+            }, 4000);
         } else if (tourState.stepIndex === 7) {
             animateAppraisalDimensionSelection();
         }
@@ -1270,7 +1320,7 @@ function showTourStep() {
     }
 
     tourState.tooltip.querySelector('.tour-title').textContent = step.title;
-    tourState.tooltip.querySelector('.tour-body').textContent = step.body;
+    tourState.tooltip.querySelector('.tour-body').innerHTML = step.body;
 
     const prevBtn = tourState.tooltip.querySelector('.tour-prev');
     const nextBtn = tourState.tooltip.querySelector('.tour-next');
@@ -1294,28 +1344,10 @@ function showTourStep() {
     // 2. Play audio for current step
     // 3. Enable Next button only after audio finishes + 3 seconds delay
 
-    const stepIndex = tourState.stepIndex;
-
-    // Define explicit mapping or logic for audio files
+    // Use audio defined in step
     let audioFiles = [];
-    if (stepIndex <= 5) {
-        // Steps 0-5 use demo-1 to demo-6
-        audioFiles = [`assets/audios/demo-${stepIndex + 1}.wav`];
-    } else if (stepIndex === 6) {
-        // Step 6 (Descriptions) uses demo-7-1
-        audioFiles = ['assets/audios/demo-7-1.wav'];
-    } else if (stepIndex === 7) {
-        // Step 7 (Dimensions) uses demo-7-2
-        audioFiles = ['assets/audios/demo-7-2.wav'];
-    } else if (stepIndex === 8) {
-        // Step 8 (Ranking) uses demo-7-3
-        audioFiles = ['assets/audios/demo-7-3.wav'];
-    } else if (stepIndex === 9) {
-        // Step 9 (Quality) uses demo-9
-        audioFiles = ['assets/audios/demo-8.wav'];
-    } else if (stepIndex === 10) {
-        // Step 10 (Save) uses demo-10
-        audioFiles = ['assets/audios/demo-9.wav'];
+    if (step.audio) {
+        audioFiles = [step.audio];
     }
 
     // Initial button state
@@ -1324,15 +1356,18 @@ function showTourStep() {
     nextBtn.classList.add('disabled');
     nextBtn.textContent = 'Playing Audio...';
 
+    // Reset flags
+    tourState.audioFinished = false;
+    tourState.animationFinished = true; // Default to true, specific steps will set to false
+
     // Helper to play sequence
     let currentAudioIndex = 0;
 
     const playNext = () => {
         if (currentAudioIndex >= audioFiles.length) {
-            // All audio finished, enable button immediately
-            nextBtn.textContent = originalText;
-            nextBtn.disabled = false;
-            nextBtn.classList.remove('disabled');
+            // All audio finished
+            tourState.audioFinished = true;
+            checkAdvanceCondition();
             return;
         }
 
@@ -1344,22 +1379,30 @@ function showTourStep() {
             playNext();
         });
 
-        tourState.audio.addEventListener('error', () => {
-            console.warn(`Audio failed to load: ${file}`);
+        tourState.audio.addEventListener('error', (e) => {
+            console.warn(`Audio failed to load: ${file}`, e);
             currentAudioIndex++;
             playNext();
         });
 
         tourState.audio.play().catch(e => {
-            console.error("Audio playback handling error:", e);
+            console.error(`Audio playback error for ${file}:`, e);
             currentAudioIndex++;
             playNext();
         });
     };
 
+    // Determine if we need to wait for animation
+    if (step.selector === '#dialogue-container' ||
+        step.selector === '#bdi-section' ||
+        step.selector === '#selected-appraisals' ||
+        step.selector === '#dialogue-rating-section' ||
+        (step.selector === '#appraisals-section' && (tourState.stepIndex === 6 || tourState.stepIndex === 7))) {
+        tourState.animationFinished = false;
+    }
+
     // Start playback sequence
     playNext();
-
 }
 
 function positionTour() {
@@ -1420,6 +1463,11 @@ function positionTour() {
             break;
         case 'top':
             top = Math.max(12, top - tRect.height - padding - 12);
+            break;
+        case 'center':
+            // Center in viewport
+            left = window.innerWidth / 2 - tRect.width / 2 + window.scrollX;
+            top = window.innerHeight / 2 - tRect.height / 2 + window.scrollY;
             break;
         case 'bottom':
         default:
@@ -1695,8 +1743,9 @@ function animateMinContextSelection() {
                     // Step 6: Remove clicking animation but keep cursor visible
                     setTimeout(() => {
                         cursor.classList.remove('clicking');
-                        // Button is now controlled by countdown timer
-                        // setTourNextButtonEnabled(true);
+                        // Animation finished
+                        tourState.animationFinished = true;
+                        checkAdvanceCondition();
                     }, 200);
                 }, 400);
             }, 800);
@@ -1744,13 +1793,22 @@ function animateBDIInteraction() {
                             cursor.classList.add('clicking');
                             setTimeout(() => {
                                 cursor.classList.remove('clicking');
-                                // Button is now controlled by countdown timer
-                                // setTourNextButtonEnabled(true);
+                                // Animation finished
+                                tourState.animationFinished = true;
+                                checkAdvanceCondition();
                             }, 200);
                         }, 400);
+                    } else {
+                        // If input not found, still finish
+                        tourState.animationFinished = true;
+                        checkAdvanceCondition();
                     }
                 }, 200);
             }, 500);
+        } else {
+            // Header not found
+            tourState.animationFinished = true;
+            checkAdvanceCondition();
         }
     }, 800);
 }
@@ -1928,6 +1986,8 @@ function animateCategorySelection() {
         const totalDelay = categoryTargets.length * 750 + 1500;
         setTimeout(() => {
             clearInterval(ensureTourClass);
+            tourState.animationFinished = true;
+            checkAdvanceCondition();
         }, totalDelay);
     }, 1000);
 }
@@ -2105,10 +2165,11 @@ async function animatespecificDimensionSelection(dimensionTargets, ensureTourCla
         positionTour();
     }
 
-    // Enable Next button for manual advance to Step 8
-    await new Promise(resolve => setTimeout(resolve, 500));
-    setTourNextButtonEnabled(true);
+    // Animation finished
+    tourState.animationFinished = true;
+    checkAdvanceCondition();
 }
+
 
 // Helper: automatically select specific fine-grained appraisals during tour (legacy - kept for compatibility)
 function autoSelectFineAppraisalsForTour() {
@@ -2481,6 +2542,12 @@ function startDemoRankingSequence() {
                 }, 400);
             }, 500);
         }, 500);
+
+        // Mark animation as finished after all sequences
+        setTimeout(() => {
+            tourState.animationFinished = true;
+            checkAdvanceCondition();
+        }, 3000);
     }, 100);
 }
 
@@ -2512,8 +2579,9 @@ function animateDialogueRatingsForTour() {
 
     function selectNextRating() {
         if (ratingIndex >= ratings.length) {
-            // All ratings selected, enable Next button for user to proceed
-            setTourNextButtonEnabled(true);
+            // All ratings selected
+            tourState.animationFinished = true;
+            checkAdvanceCondition();
             return;
         }
 
@@ -2698,6 +2766,18 @@ function endTour() {
     }
 
     localStorage.setItem(STORAGE_KEYS.TOUR_SEEN, '1');
+
+    // Sync tour seen status to Firebase
+    if (firebaseStorage && currentUsername) {
+        console.log('Syncing tour completion to Firebase');
+        const userId = firebaseStorage.getCustomUserId() || firebaseStorage.currentUser?.uid;
+        if (userId) {
+            firebaseStorage.db.collection('users').doc(userId).update({
+                tour_seen: true
+            }).catch(err => console.warn('Failed to sync tour status to Firebase:', err));
+        }
+    }
+
     tourState.overlay = null;
     tourState.highlight = null;
     tourState.tooltip = null;
@@ -5452,7 +5532,10 @@ async function handleLogin() {
         // Look up user by custom ID (username is the custom ID for regular users)
         const profile = await firebaseStorage.getUserProfile(result.uid); // result.uid is now the custom ID (username)
         if (!profile) {
-            await firebaseStorage.logout();
+            if (currentUsername) {
+                localStorage.removeItem(STORAGE_KEYS.TOUR_SEEN);
+                await firebaseStorage.logout();
+            }
             showLoginError('Account not found in annotation records. Please register.');
             return;
         }
@@ -5709,16 +5792,35 @@ function showInstructionModal() {
     const hasSeenInstructionsBefore = hasSeenInstructions();
     const hasSeenTour = localStorage.getItem(STORAGE_KEYS.TOUR_SEEN) === '1';
 
-    // Allow closing if user has already engaged with either the tour or instructions
-    const shouldShowCloseButton = hasSeenTour || hasSeenInstructionsBefore;
+    // Allow closing ONLY if user has already engaged with the tour
+    // This forces new users (and those who have only seen instructions but not tour) to take the tour
+    const shouldShowCloseButton = hasSeenTour;
 
+    console.log('Instruction Close Button Logic:', {
+        hasSeenTour,
+        shouldShowCloseButton,
+        closeBtnFound: !!closeBtn,
+        closeBtnDisabled: closeBtn ? closeBtn.disabled : null
+    });
+
+    // Button Disable Logic
     if (closeBtn) {
         if (shouldShowCloseButton) {
-            // User has seen tour or instructions - allow them to skip
-            closeBtn.style.display = 'block';
+            // User has seen tour - enable button
+            closeBtn.disabled = false;
+            closeBtn.classList.remove('disabled-btn'); // Optional visual cue
+            closeBtn.title = "Close instructions";
+            // Ensure no residual hide classes
+            closeBtn.classList.remove('force-hide');
+            closeBtn.style.removeProperty('display');
         } else {
-            // First time user who hasn't taken tour - encourage engagement
-            closeBtn.style.display = 'none';
+            // First time user who hasn't taken tour - disable button
+            closeBtn.disabled = true;
+            closeBtn.classList.add('disabled-btn'); // Optional visual cue
+            closeBtn.title = "Please complete the interactive tour first";
+            // Ensure no residual hide classes
+            closeBtn.classList.remove('force-hide');
+            closeBtn.style.removeProperty('display');
         }
     }
 
@@ -5726,11 +5828,21 @@ function showInstructionModal() {
     const skipBtn = document.getElementById('skip-instructions-btn');
     if (skipBtn) {
         if (hasSeenTour) {
-            // User has completed tour - show skip button
-            skipBtn.style.display = 'block';
+            // User has completed tour - enable skip button
+            skipBtn.disabled = false;
+            skipBtn.classList.remove('disabled-btn');
+            skipBtn.title = "Skip instructions";
+            // Ensure no residual hide classes
+            skipBtn.classList.remove('force-hide');
+            skipBtn.style.removeProperty('display');
         } else {
-            // User hasn't completed tour - hide skip button
-            skipBtn.style.display = 'none';
+            // User hasn't completed tour - disable skip button
+            skipBtn.disabled = true;
+            skipBtn.classList.add('disabled-btn');
+            skipBtn.title = "Please complete the interactive tour first";
+            // Ensure no residual hide classes
+            skipBtn.classList.remove('force-hide');
+            skipBtn.style.removeProperty('display');
         }
     }
 
@@ -6212,6 +6324,7 @@ function updateUserBadge() {
 function handleLogout() {
     if (confirm('Are you sure you want to logout?')) {
         if (firebaseStorage) {
+            localStorage.removeItem(STORAGE_KEYS.TOUR_SEEN);
             firebaseStorage.logout();
         }
 
