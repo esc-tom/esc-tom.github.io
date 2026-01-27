@@ -200,31 +200,18 @@ Belief (I thought X) → Desire (I wanted Y) → Intention (I planned Z)
 
 Cognitive appraisals are **how the patient evaluates their situation** — their subjective interpretation of the event.
 
-The pre-filled annotations include **5 dimensions** selected as most salient. Your job is to verify and revise these selections.
+In the interface, cognitive appraisal annotation is now **hierarchical (two-step)**:
 
-### The 14 Cognitive Appraisal Dimensions
+1. **Step 1 (Coarse categories):** You will see **only short descriptions** of several broad appraisal categories. Click the categories that seem important for understanding the patient’s reaction.
+2. **Step 2 (Fine-grained dimensions):** You will then see a grid of **fine-grained appraisal dimensions** (each with a *dimension name* and a *description*). From these, select **exactly 5** that are most salient, then **drag to rank** them (1 = most important).
 
-1. **Suddenness**: The situation was sudden or abrupt
-2. **Unfamiliarity**: The situation is unfamiliar
-3. **Predictability of Event**: The occurrence of the situation is predictable
-4. **Unpredictability of Event**: The occurrence of the situation is unpredictable
-5. **Goal Incongruence**: The outcome is not aligned with personal goals/desires
-6. **Predictability of Consequences**: Consequences of the situation are easily anticipated
-7. **Unpredictability of Consequences**: Consequences of the situation are not anticipated
-8. **Self Cause**: The situation was caused by the character themselves
-9. **Other Cause**: The situation was caused by chance or others
-10. **Self Control**: The character has control over what is going on in the situation
-11. **Other Control**: Someone other than the character has control over what is going on
-12. **Norm Violation**: The actions that produced the situation violated the character's standards and ideals
-13. **Coping Demand**: The situation requires a great deal of energy to cope with it
-14. **Unacceptable Consequences**: Consequences of the situation are unbearable
+All appraisal definitions come from `data/cognitive_dimensions_hierchical.json`.
 
 ### Your Task
 
-1. **Review** each pre-selected dimension
-2. **Verify** it applies to the patient's situation based on dialogue evidence
-3. **Add** missing dimensions that play an important role (if any)
-4. **Remove** dimensions that aren't salient or lack evidence
+1. **Step 1:** Select the important **coarse categories** (based on the descriptions).
+2. **Step 2:** Select **exactly 5** **fine-grained** appraisal dimensions from the grid.
+3. **Rank** the 5 selected appraisals by importance using drag-and-drop.
 
 ### Guidelines
 

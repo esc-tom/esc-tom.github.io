@@ -1,0 +1,79 @@
+{
+  "Suddenness & Familiarity": {
+    "description": "The patient's immediate perception of the event as sudden or unfamiliar.",
+    "dimensions": [
+      {
+        "suddenness": "The patient finds the situation sudden or abrupt."
+      },
+      {
+        "unfamiliarity": "The patient finds the situation unfamiliar."
+      }
+    ]
+  },
+  "Event Predictability": {
+    "description": "Whether the patient expected the event itself to occur.",
+    "dimensions": [
+      {
+        "predictability_of_event": "The patient was expecting the event to happen."
+      },
+      {
+        "unpredictability_of_event": "The patient wasn't expecting the occurrence of the event."
+      }
+    ]
+  },
+  "Consequence Predictability": {
+    "description": "Whether the patient could foresee the outcomes of the event.",
+    "dimensions": [
+      {
+        "predictability_of_consequences": "The patient can easily anticipate the consequences of the event."
+      },
+      {
+        "unpredictability_of_consequences": "The patient had no idea about what the consequences of the event would be."
+      }
+    ]
+  },
+  "Cause & Responsibility": {
+    "description": "The patient attributes the cause of the event to themselves.",
+    "dimensions": [
+      {
+        "self_cause": "The patient caused the event themselves."
+      },
+      {
+        "self_control": "The patient has control over what is going on in the event."
+      }
+    ]
+  },
+  "Control & Power": {
+    "description": "The patient attributes the cause of the event to someone else.",
+    "dimensions": [
+      {
+        "other_cause": "Someone/Something other than the patient caused the event."
+      },
+      {
+        "other_control": "Someone/Something other than the patient controls what is going on in the event."
+      }
+    ]
+  },
+  "Goal & Norm Conflict": {
+    "description": "The event conflicts with the patient’s goals, expectations, or sense of what should have happened.",
+    "dimensions": [
+      {
+        "goal_incongruence": "The outcome of the event is not aligned with the patient's goals/desires."
+      },
+      {
+        "norm_violation": "The actions that produced the event violated the patient's standards and ideals."
+      }
+    ]
+  },
+  "Coping & Impact Severity": {
+    "description": "The patient finds dealing with the event's consequences overwhelming or difficult to endure.",
+    "dimensions": [
+      {
+        "coping_demand": "The patient has to spend a great deal of (physical or mental) energy to handle the outcome of the event."
+      },
+      {
+        "unacceptable_consequences": "The consequences of the event are unbearable for the patient."
+      }
+    ]
+  }
+}

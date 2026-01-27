@@ -12,35 +12,35 @@
     --warning-color: #f59e0b;
     --danger-color: #ef4444;
     --info-color: #0ea5e9;
-    
+
     /* Patient Colors (Warm - Coral) */
     --patient-primary: #ec6b56;
     --patient-light: #fff5f3;
     --patient-border: #f8a898;
-    
+
     /* Therapist Colors (Cool - Teal) */
     --therapist-primary: #14b8a6;
     --therapist-light: #f0fdfa;
     --therapist-border: #5eead4;
-    
+
     /* Text Colors */
     --text-primary: #1f2937;
     --text-secondary: #6b7280;
     --text-light: #9ca3af;
-    
+
     /* Background Colors */
     --bg-primary: #ffffff;
     --bg-secondary: #f9fafb;
     --bg-tertiary: #f3f4f6;
-    
+
     --border-color: #e5e7eb;
     --border-focus: #667eea;
-    
+
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    
+
     --radius-sm: 6px;
     --radius-md: 8px;
     --radius-lg: 12px;
@@ -109,6 +109,30 @@ header h1 {
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.demo-btn {
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: var(--radius-md);
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgba(102, 126, 234, 0.3);
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.demo-btn:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(102, 126, 234, 0.4);
+}
+
+.demo-btn:active {
+    transform: translateY(0);
 }
 
 .dialogue-selector label {
@@ -189,7 +213,8 @@ header h1 {
     gap: 20px;
 }
 
-.dialogue-panel, .annotation-panel {
+.dialogue-panel,
+.annotation-panel {
     background-color: var(--bg-primary);
     padding: 24px;
     border-radius: var(--radius-xl);
@@ -206,7 +231,8 @@ header h1 {
     border-bottom: 3px solid var(--primary-color);
 }
 
-.dialogue-panel h2, .annotation-panel h2 {
+.dialogue-panel h2,
+.annotation-panel h2 {
     color: var(--text-primary);
     margin: 0;
     font-size: 20px;
@@ -428,7 +454,8 @@ header h1 {
 
 .dialogue-container {
     min-height: 500px;
-    max-height: 850px;
+    max-height: 1200px;
+    /* Increased to match expanded appraisal section height */
     overflow-y: auto;
     margin-bottom: 20px;
     padding: 20px;
@@ -521,6 +548,7 @@ header h1 {
         opacity: 0;
         transform: translateY(15px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -543,7 +571,8 @@ header h1 {
 
 .dialogue-turn.patient {
     background: #fef2f2;
-    border-left: 4px solid #ef4444; /* strong red */
+    border-left: 4px solid #ef4444;
+    /* strong red */
 }
 
 .dialogue-turn.patient:hover {
@@ -553,7 +582,8 @@ header h1 {
 
 .dialogue-turn.therapist {
     background: #f0fdf4;
-    border-left: 4px solid #22c55e; /* strong green */
+    border-left: 4px solid #22c55e;
+    /* strong green */
 }
 
 .dialogue-turn.therapist:hover {
@@ -572,19 +602,19 @@ header h1 {
     letter-spacing: 0.8px;
 }
 
-.speaker-label > span:first-child {
+.speaker-label>span:first-child {
     padding: 0;
     border-radius: 0;
     font-weight: 700;
     box-shadow: none;
 }
 
-.speaker-label.patient > span:first-child {
+.speaker-label.patient>span:first-child {
     background: transparent;
     color: #dc2626;
 }
 
-.speaker-label.therapist > span:first-child {
+.speaker-label.therapist>span:first-child {
     background: transparent;
     color: #059669;
 }
@@ -608,7 +638,8 @@ header h1 {
     font-size: 14px;
     font-weight: 400;
     position: relative;
-    padding-right: 70px; /* Space for edit button */
+    padding-right: 70px;
+    /* Space for edit button */
 }
 
 /* Utterance editing */
@@ -663,7 +694,8 @@ header h1 {
     justify-content: flex-end;
 }
 
-.utterance-save-btn, .utterance-cancel-btn {
+.utterance-save-btn,
+.utterance-cancel-btn {
     padding: 6px 14px;
     font-size: 13px;
     border: none;
@@ -703,8 +735,9 @@ header h1 {
     margin-left: 6px;
 }
 
-.placeholder, .placeholder-small {
-    color: #94a3b8;
+.placeholder,
+.placeholder-small {
+    color: #a0aec0;
     font-style: normal;
     text-align: center;
     padding: 60px 20px;
@@ -713,8 +746,12 @@ header h1 {
 }
 
 .placeholder-small {
-    padding: 30px 20px;
-    font-size: 13px;
+    padding: 36px 20px;
+    font-size: 14px;
+    color: #667eea;
+    opacity: 0.7;
+    font-weight: 600;
+    letter-spacing: 0.3px;
 }
 
 .dialogue-controls {
@@ -1004,6 +1041,7 @@ header h1 {
         opacity: 0;
         transform: translateY(-10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -1012,10 +1050,13 @@ header h1 {
 
 /* Error highlight animation for appraisal section */
 @keyframes errorPulse {
-    0%, 100% {
+
+    0%,
+    100% {
         border-color: #ef4444;
         box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
     }
+
     50% {
         border-color: #dc2626;
         box-shadow: 0 0 0 8px rgba(239, 68, 68, 0);
@@ -1099,6 +1140,22 @@ header h1 {
     max-height: 2000px;
     overflow: hidden;
     transition: max-height 0.3s ease, padding 0.3s ease;
+}
+
+/* Special handling for appraisals section to ensure all content is visible */
+#appraisals-content.section-content {
+    max-height: 3000px !important;
+    /* Increased significantly to accommodate all expanded categories and selected appraisals */
+    overflow-y: auto;
+    /* Allow scrolling if content exceeds viewport */
+    overflow-x: hidden;
+}
+
+/* Ensure appraisal section can expand fully when all categories are open */
+#appraisals-section .section-content {
+    max-height: 3000px !important;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 .section-content.collapsed {
@@ -1277,12 +1334,66 @@ header h1 {
 }
 
 .appraisal-options {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: 8px;
     margin-top: 10px;
     margin-bottom: 20px;
     padding: 5px;
+}
+
+/* Single column layout for coarse options */
+.appraisal-options:has(.coarse-option) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Single column layout for fine options container */
+.appraisal-options:has(.fine-option) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* Category container for combined view */
+.appraisal-category-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+/* Dimensions container (shown when category is selected) */
+.appraisal-dimensions-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+    margin-left: 20px;
+    margin-top: 8px;
+    padding-left: 16px;
+    border-left: 3px solid rgba(102, 126, 234, 0.2);
+    transition: all 0.3s ease;
+}
+
+/* Grid layout for all fine dimensions (legacy support) */
+.fine-dimensions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+    margin-top: 4px;
+}
+
+@media (max-width: 1200px) {
+    .fine-dimensions-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .fine-dimensions-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 .appraisal-option {
@@ -1349,51 +1460,399 @@ header h1 {
     box-shadow: var(--shadow-sm);
 }
 
-/* Responsive: 2 columns on smaller annotation panels */
-@media (max-width: 1400px) {
-    .appraisal-options {
-        grid-template-columns: repeat(2, 1fr);
+/* Responsive adjustments for coarse options */
+@media (max-width: 768px) {
+    .coarse-option {
+        padding: 14px 50px 14px 16px;
+    }
+
+    .coarse-option::before {
+        right: 14px;
+        width: 24px;
+        height: 24px;
     }
 }
 
-.selected-appraisals {
-    min-height: 150px;
-    background: var(--bg-secondary);
-    padding: 16px;
-    padding-top: 36px;
-    border-radius: var(--radius-lg);
-    border: 2px dashed var(--primary-color);
+/* ========== Hierarchical Appraisal Styles ========== */
+
+/* Phase Instruction Banner */
+.appraisal-phase-instruction {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 16px 20px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    font-size: 14px;
+    color: white;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    border: none;
+    line-height: 1.6;
+    animation: slideInFromTop 0.5s ease-out;
+}
+
+@keyframes slideInFromTop {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.appraisal-phase-instruction strong {
+    font-size: 15px;
+    display: block;
+    margin-bottom: 4px;
+    letter-spacing: 0.5px;
+}
+
+.appraisal-phase-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+/* Coarse Options - Enhanced Card Design */
+.coarse-option {
+    border-width: 2px;
+    position: relative;
+    background: linear-gradient(to bottom right, #ffffff, #f8f9fa);
+    min-height: auto;
+    padding: 18px 60px 18px 22px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: fadeInSlide 0.4s ease-out backwards;
+}
+
+.coarse-option:nth-child(2) {
+    animation-delay: 0.05s;
+}
+
+.coarse-option:nth-child(3) {
+    animation-delay: 0.1s;
+}
+
+.coarse-option:nth-child(4) {
+    animation-delay: 0.15s;
+}
+
+.coarse-option:nth-child(5) {
+    animation-delay: 0.2s;
+}
+
+.coarse-option:nth-child(6) {
+    animation-delay: 0.25s;
+}
+
+.coarse-option::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    border: 3px solid #d1d9e6;
+    border-radius: 50%;
+    background: white;
+    transition: all 0.3s ease;
+    z-index: 1;
+}
+
+
+.coarse-option.selected {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border-color: #28a745;
+    box-shadow: 0 4px 16px rgba(40, 167, 69, 0.25);
+}
+
+.coarse-option.selected::before {
+    content: '✓';
+    background: #28a745;
+    border-color: #28a745;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 18px;
+    line-height: 1;
+}
+
+
+.coarse-option.selected:hover {
+    background: linear-gradient(135deg, #c3e6cb 0%, #b1dfbb 100%);
+    border-color: #218838;
+    box-shadow: 0 6px 20px rgba(40, 167, 69, 0.3);
+}
+
+.coarse-option:not(.selected):hover {
+    border-color: #667eea;
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15);
+    transform: translateX(4px);
+}
+
+.coarse-option .appraisal-option-desc {
+    font-size: 15px;
+    line-height: 1.65;
+    color: #2c3e50;
+    font-weight: 500;
+    margin: 0;
+    letter-spacing: 0.01em;
+}
+
+/* Fine-Grained Category Headers */
+.fine-category-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 20px;
+    margin-top: 24px;
+    margin-bottom: 14px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 15px;
+    text-transform: none;
+    box-shadow: 0 3px 12px rgba(102, 126, 234, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    letter-spacing: 0.3px;
+}
+
+.fine-category-header::before {
+    content: '📂';
+    font-size: 18px;
+}
+
+.fine-category-header:first-of-type {
+    margin-top: 0;
+}
+
+/* Fine Options - Compact Box Design */
+.fine-option {
+    margin-left: 0;
+    margin-bottom: 0;
+    border: 2px solid #d1d9e6;
+    border-left: 4px solid #667eea;
+    background: linear-gradient(to bottom right, #ffffff, #f8f9ff);
+    transition: all 0.3s ease;
+    animation: fadeInSlide 0.3s ease-out backwards;
+    padding: 16px 18px;
+    min-height: 95px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
     position: relative;
 }
 
-.selected-appraisals::before {
-    content: 'Drag ⋮⋮ to reorder by importance';
+
+.fine-option:hover:not(.disabled) {
+    border-left-color: #764ba2;
+    border-color: #667eea;
+    background: linear-gradient(to bottom right, #f0f2ff, #e8eaff);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.fine-option .appraisal-option-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #667eea;
+    text-transform: capitalize;
+    letter-spacing: 0.01em;
+    margin-bottom: 2px;
+}
+
+.fine-option .appraisal-option-desc {
+    font-size: 14px;
+    color: #2c3e50;
+    line-height: 1.6;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+
+.fine-option.disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    background: #f5f5f5;
+    pointer-events: none;
+}
+
+.fine-option.disabled:hover {
+    transform: none;
+    box-shadow: none;
+    border-color: #d1d9e6;
+    border-left-color: #d1d9e6;
+}
+
+/* Selected items - still clickable for deselection */
+.fine-option.selected {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border-color: #28a745;
+    border-left-color: #28a745;
+    box-shadow: 0 3px 10px rgba(40, 167, 69, 0.2);
+}
+
+.fine-option.selected::after {
+    content: '✓';
     position: absolute;
-    top: 10px;
-    left: 16px;
-    right: 16px;
-    font-size: 12px;
-    color: var(--text-secondary);
+    top: 8px;
+    right: 8px;
+    color: #28a745;
+    font-size: 20px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.fine-option.selected:hover {
+    background: linear-gradient(135deg, #c3e6cb 0%, #b1dfbb 100%);
+    border-color: #218838;
+    border-left-color: #218838;
+    box-shadow: 0 4px 14px rgba(40, 167, 69, 0.3);
+    transform: translateY(-2px);
+}
+
+.fine-option.selected .appraisal-option-name {
+    color: #28a745;
+}
+
+
+/* Action Buttons */
+.phase-continue-btn,
+.phase-back-btn {
+    padding: 14px 28px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.phase-continue-btn:hover:not(:disabled),
+.phase-back-btn:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+.phase-continue-btn:disabled {
+    background: linear-gradient(135deg, #bdc3c7 0%, #95a5a6 100%);
+    cursor: not-allowed;
+    box-shadow: none;
+    opacity: 0.6;
+}
+
+.phase-continue-btn {
+    margin-top: 20px;
+    width: 100%;
+}
+
+.phase-continue-btn:not(:disabled) {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 4px 20px rgba(102, 126, 234, 0.5);
+    }
+}
+
+.phase-back-btn {
+    padding: 10px 20px;
+    font-size: 13px;
+    flex-shrink: 0;
+    text-transform: none;
     font-weight: 600;
+    background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+}
+
+.phase-back-btn:hover {
+    background: linear-gradient(135deg, #7f8c8d 0%, #95a5a6 100%);
+}
+
+/* Selection Counter Badge */
+.appraisal-phase-instruction::after {
+    content: attr(data-count);
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.selected-appraisals {
+    min-height: 500px;
+    /* Increased to accommodate 5 items (each ~80-100px + spacing) */
+    background: linear-gradient(135deg, #f8f9ff 0%, #ffffff 100%);
+    padding: 18px;
+    padding-top: 42px;
+    border-radius: 12px;
+    border: 2px dashed #667eea;
+    position: relative;
+    box-shadow: inset 0 2px 8px rgba(102, 126, 234, 0.08);
+}
+
+.selected-appraisals::before {
+    content: '⋮⋮ Drag to reorder by importance (1 = most important)';
+    position: absolute;
+    top: 12px;
+    left: 18px;
+    right: 18px;
+    font-size: 12px;
+    color: #667eea;
+    font-weight: 700;
     opacity: 0.8;
     pointer-events: none;
     text-align: center;
     z-index: 1;
+    letter-spacing: 0.3px;
 }
 
 .appraisal-item {
     display: flex;
-    align-items: stretch;
+    align-items: center;
     gap: 14px;
     padding: 16px;
-    background: var(--bg-primary);
-    border: 2px solid var(--border-color);
-    border-radius: var(--radius-md);
-    margin-bottom: 10px;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    background: linear-gradient(to right, #ffffff, #fafbff);
+    border: 2px solid #e0e4f0;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: move;
-    box-shadow: var(--shadow-sm);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.08);
     position: relative;
+    animation: fadeInSlide 0.4s ease-out;
+}
+
+@keyframes fadeInSlide {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .appraisal-item::after {
@@ -1409,8 +1868,8 @@ header h1 {
 }
 
 .appraisal-item:hover {
-    border-color: var(--primary-color);
-    box-shadow: var(--shadow-md);
+    border-color: #667eea;
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
     transform: translateY(-2px);
 }
 
@@ -1465,9 +1924,19 @@ header h1 {
 }
 
 @keyframes wiggle {
-    0%, 100% { transform: rotate(0deg); }
-    25% { transform: rotate(-3deg); }
-    75% { transform: rotate(3deg); }
+
+    0%,
+    100% {
+        transform: rotate(0deg);
+    }
+
+    25% {
+        transform: rotate(-3deg);
+    }
+
+    75% {
+        transform: rotate(3deg);
+    }
 }
 
 .appraisal-rank {
@@ -1475,9 +1944,281 @@ header h1 {
     align-items: center;
     justify-content: center;
     font-weight: 800;
-    font-size: 18px;
-    color: var(--primary-color);
-    min-width: 28px;
+    font-size: 16px;
+    color: white;
+    min-width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+    flex-shrink: 0;
+}
+
+/* Tour button */
+.tour-entry {
+    margin-top: 16px;
+}
+
+.tour-start-btn {
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgba(102, 126, 234, 0.3);
+    transition: all 0.2s ease;
+}
+
+.tour-start-btn:hover {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 5px 14px rgba(102, 126, 234, 0.4);
+}
+
+.tour-start-btn:active {
+    transform: translateY(0);
+}
+
+/* Guided tour overlay */
+.tour-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    z-index: 9998;
+    pointer-events: auto;
+    /* Block all interactions */
+    cursor: not-allowed;
+    /* Show that interactions are blocked */
+}
+
+.tour-target-active {
+    position: relative;
+    z-index: 10001 !important;
+    /* above overlay */
+    filter: none !important;
+}
+
+/* Only give a solid white background + strong outline when the target is a full annotation section,
+   so we don't accidentally cover nearby controls like the Save button. */
+.annotation-section.tour-target-active {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.45), 0 14px 30px rgba(0, 0, 0, 0.22) !important;
+    z-index: 10001 !important;
+    /* Above the tour highlight but below tooltip */
+    position: relative !important;
+    /* Ensure z-index works */
+}
+
+/* Ensure the section content also has white background */
+.annotation-section.tour-target-active .section-content {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+}
+
+.tour-highlight {
+    position: absolute;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    /* More transparent so section's white background shows through */
+    box-shadow: 0 0 0 5px rgba(102, 126, 234, 0.5), 0 18px 35px rgba(0, 0, 0, 0.28);
+    transition: top 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        width 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+        height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 9999;
+    pointer-events: none;
+}
+
+.tour-tooltip {
+    position: absolute;
+    min-width: 300px;
+    max-width: 420px;
+    background: #ffffff;
+    color: #1f2937;
+    border-radius: 12px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+    padding: 20px 22px;
+    z-index: 10000;
+    border: 1px solid rgba(102, 126, 234, 0.25);
+    pointer-events: auto;
+    /* Allow interactions with tooltip */
+}
+
+.tour-tooltip .tour-title {
+    font-weight: 700;
+    font-size: 20px;
+    color: #1f2937;
+    margin-bottom: 10px;
+    letter-spacing: -0.01em;
+}
+
+.tour-tooltip .tour-body {
+    font-size: 16px;
+    line-height: 1.7;
+    color: #374151;
+    margin-bottom: 16px;
+    letter-spacing: 0.01em;
+}
+
+.tour-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.tour-actions button {
+    flex: 1;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    pointer-events: auto;
+    /* Ensure buttons are clickable */
+}
+
+.tour-actions .tour-prev {
+    background: #e5e7eb;
+    color: #1f2937;
+}
+
+.tour-actions .tour-next {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.tour-actions .tour-next.disabled,
+.tour-actions .tour-next:disabled {
+    background: #d1d5db;
+    color: #9ca3af;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.tour-actions .tour-skip {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+.tour-actions button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+.tour-actions .tour-next:hover {
+    box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
+}
+
+/* Virtual cursor for demo animations - using cursor assets */
+.tour-virtual-cursor {
+    position: fixed;
+    width: 32px;
+    height: 32px;
+    pointer-events: none;
+    z-index: 10002;
+    transition: top 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+        left 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+        transform 0.2s ease,
+        background-image 0.2s ease;
+    cursor: none;
+    transform-origin: 2px 2px;
+    margin-top: -2px;
+    margin-left: -2px;
+    background-image: url('../assets/cursor.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    filter: drop-shadow(0 2px 6px rgba(99, 102, 241, 0.3));
+}
+
+/* Clicking state - using cursor_click.png */
+.tour-virtual-cursor.clicking {
+    background-image: url('../assets/cursor_click.png');
+    animation: virtualCursorClick 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    filter: drop-shadow(0 3px 10px rgba(16, 185, 129, 0.4));
+}
+
+/* Dragging state - using cursor_drag.png */
+.tour-virtual-cursor.dragging {
+    background-image: url('../assets/cursor_drag.png');
+    filter: drop-shadow(0 3px 10px rgba(255, 165, 0, 0.4));
+}
+
+/* Scrolling state - using cursor_scroll.png */
+.tour-virtual-cursor.scrolling {
+    margin-top: -16px;
+    margin-left: -16px;
+    width: 32px;
+    height: 32px;
+    transform-origin: 16px 16px;
+    background-image: url('../assets/cursor_scroll.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    filter: drop-shadow(0 4px 12px rgba(99, 102, 241, 0.4));
+    animation: virtualCursorScroll 1.5s ease-in-out infinite;
+}
+
+/* Remove pseudo-elements for scrolling state since we're using the image */
+.tour-virtual-cursor.scrolling::before,
+.tour-virtual-cursor.scrolling::after {
+    display: none;
+}
+
+@keyframes virtualCursorClick {
+    0% {
+        transform: scale(1) translateY(0);
+    }
+
+    50% {
+        transform: scale(0.9) translateY(1px);
+    }
+
+    100% {
+        transform: scale(1) translateY(0);
+    }
+}
+
+@keyframes virtualCursorScroll {
+
+    0%,
+    100% {
+        transform: translateY(0) rotate(0deg) scale(1);
+    }
+
+    50% {
+        transform: translateY(-3px) rotate(5deg) scale(1.05);
+    }
+}
+
+/* Subtle pulse for normal pointer state */
+.tour-virtual-cursor:not(.clicking):not(.scrolling) {
+    animation: virtualCursorGlow 3s ease-in-out infinite;
+}
+
+@keyframes virtualCursorGlow {
+
+    0%,
+    100% {
+        filter: drop-shadow(0 2px 6px rgba(99, 102, 241, 0.3));
+    }
+
+    50% {
+        filter: drop-shadow(0 3px 8px rgba(99, 102, 241, 0.5));
+    }
+}
+
+/* Small pulse highlight for demo category selection during tour */
+.coarse-option.tour-coarse-highlight {
+    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.6), 0 10px 24px rgba(0, 0, 0, 0.25);
+    transform: translateY(-3px);
 }
 
 .appraisal-item-content {
@@ -1490,15 +2231,16 @@ header h1 {
 
 .appraisal-item-label {
     font-weight: 700;
-    color: var(--text-primary);
+    color: #2c3e50;
     font-size: 15px;
     text-transform: capitalize;
+    letter-spacing: 0.2px;
 }
 
 .appraisal-item-description {
     font-size: 13px;
-    color: var(--text-secondary);
-    line-height: 1.5;
+    color: #5a6c7d;
+    line-height: 1.6;
 }
 
 .appraisal-item-controls {
@@ -1510,20 +2252,27 @@ header h1 {
 /* Removed: appraisal-item-intensity styles (intensity scores no longer used) */
 
 .appraisal-item-remove {
-    padding: 6px 10px;
-    background-color: #e74c3c;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
     color: white;
     border: none;
-    border-radius: 4px;
+    border-radius: 8px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
-    transition: background-color 0.2s;
-    min-width: 32px;
+    transition: all 0.3s ease;
+    min-width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(231, 76, 60, 0.3);
 }
 
 .appraisal-item-remove:hover {
-    background-color: #c0392b;
+    background: linear-gradient(135deg, #c0392b 0%, #e74c3c 100%);
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
 }
 
 .action-buttons {
@@ -1568,7 +2317,7 @@ header h1 {
         flex-direction: column;
         padding: 0 20px;
     }
-    
+
     .action-buttons-fullwidth .btn {
         width: 100%;
         min-width: auto;
@@ -1581,7 +2330,8 @@ header h1 {
     top: 80px;
     left: 50%;
     transform: translateX(-50%) translateY(-100px);
-    z-index: 10000;
+    /* Keep notifications above all overlays, modals, and tour elements */
+    z-index: 11000;
     opacity: 0;
     pointer-events: none;
     transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
@@ -1597,9 +2347,9 @@ header h1 {
     background: white;
     padding: 16px 24px;
     border-radius: var(--radius-xl);
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 
-                0 10px 10px -5px rgba(0, 0, 0, 0.04),
-                0 0 0 1px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+        0 10px 10px -5px rgba(0, 0, 0, 0.04),
+        0 0 0 1px rgba(0, 0, 0, 0.05);
     display: flex;
     align-items: center;
     gap: 12px;
@@ -1838,7 +2588,7 @@ header h1 {
     .rating-items-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .rating-label {
         min-height: auto;
     }
@@ -1876,9 +2626,11 @@ header h1 {
         transform: scale(0.9);
         opacity: 0;
     }
+
     50% {
         transform: scale(1.02);
     }
+
     100% {
         transform: scale(1);
         opacity: 1;
@@ -1903,9 +2655,12 @@ header h1 {
 }
 
 @keyframes warningBounce {
-    0%, 100% {
+
+    0%,
+    100% {
         transform: translateY(0);
     }
+
     50% {
         transform: translateY(-8px);
     }
@@ -2004,6 +2759,7 @@ header h1 {
         transform: translateY(-50px);
         opacity: 0;
     }
+
     to {
         transform: translateY(0);
         opacity: 1;
@@ -2079,7 +2835,8 @@ header h1 {
     align-items: center;
     gap: 8px;
     padding: 8px 16px;
-    min-height: 36px; /* Match instruction button height */
+    min-height: 36px;
+    /* Match instruction button height */
     line-height: 1.2;
     background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
     border: 2px solid #3b82f6;
@@ -2146,6 +2903,7 @@ header h1 {
     from {
         opacity: 0;
     }
+
     to {
         opacity: 1;
     }
@@ -2167,6 +2925,7 @@ header h1 {
         transform: translateY(-50px) scale(0.9);
         opacity: 0;
     }
+
     to {
         transform: translateY(0) scale(1);
         opacity: 1;
@@ -2352,40 +3111,46 @@ header h1 {
 
 /* Glowing animation for instruction button */
 @keyframes glow-pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 2px 6px rgba(245, 158, 11, 0.4),
-                    0 0 10px rgba(245, 158, 11, 0.3),
-                    0 0 16px rgba(245, 158, 11, 0.25),
-                    0 0 22px rgba(245, 158, 11, 0.2),
-                    inset 0 0 10px rgba(255, 237, 213, 0.3);
+            0 0 10px rgba(245, 158, 11, 0.3),
+            0 0 16px rgba(245, 158, 11, 0.25),
+            0 0 22px rgba(245, 158, 11, 0.2),
+            inset 0 0 10px rgba(255, 237, 213, 0.3);
         border-color: #f59e0b;
     }
+
     50% {
         box-shadow: 0 2px 8px rgba(245, 158, 11, 0.6),
-                    0 0 14px rgba(245, 158, 11, 0.5),
-                    0 0 20px rgba(245, 158, 11, 0.4),
-                    0 0 28px rgba(245, 158, 11, 0.35),
-                    inset 0 0 15px rgba(255, 237, 213, 0.5);
+            0 0 14px rgba(245, 158, 11, 0.5),
+            0 0 20px rgba(245, 158, 11, 0.4),
+            0 0 28px rgba(245, 158, 11, 0.35),
+            inset 0 0 15px rgba(255, 237, 213, 0.5);
         border-color: #fbbf24;
     }
 }
 
 /* Enhanced glow animation for hover state */
 @keyframes glow-pulse-hover {
-    0%, 100% {
+
+    0%,
+    100% {
         box-shadow: 0 2px 8px rgba(245, 158, 11, 0.6),
-                    0 0 12px rgba(245, 158, 11, 0.5),
-                    0 0 18px rgba(245, 158, 11, 0.4),
-                    0 0 24px rgba(245, 158, 11, 0.35),
-                    inset 0 0 20px rgba(255, 237, 213, 0.6);
+            0 0 12px rgba(245, 158, 11, 0.5),
+            0 0 18px rgba(245, 158, 11, 0.4),
+            0 0 24px rgba(245, 158, 11, 0.35),
+            inset 0 0 20px rgba(255, 237, 213, 0.6);
         border-color: #fbbf24;
     }
+
     50% {
         box-shadow: 0 2px 10px rgba(245, 158, 11, 0.7),
-                    0 0 16px rgba(245, 158, 11, 0.6),
-                    0 0 24px rgba(245, 158, 11, 0.5),
-                    0 0 32px rgba(245, 158, 11, 0.45),
-                    inset 0 0 25px rgba(255, 237, 213, 0.7);
+            0 0 16px rgba(245, 158, 11, 0.6),
+            0 0 24px rgba(245, 158, 11, 0.5),
+            0 0 32px rgba(245, 158, 11, 0.45),
+            inset 0 0 25px rgba(255, 237, 213, 0.7);
         border-color: #fcd34d;
     }
 }
@@ -2396,7 +3161,8 @@ header h1 {
     align-items: center;
     gap: 8px;
     padding: 8px 16px;
-    min-height: 36px; /* Match user badge height */
+    min-height: 36px;
+    /* Match user badge height */
     line-height: 1.2;
     background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
     border: 2px solid #f59e0b;
@@ -2409,7 +3175,8 @@ header h1 {
     margin-right: 0;
     position: relative;
     animation: glow-pulse 2.5s ease-in-out infinite;
-    isolation: isolate; /* Create new stacking context */
+    isolation: isolate;
+    /* Create new stacking context */
 }
 
 #show-instructions-btn::before {
@@ -2867,7 +3634,8 @@ header h1 {
     font-style: italic;
     letter-spacing: 0.em;
     text-transform: uppercase;
-    color: #ffffff; /* vibrant blue for strong contrast on white */
+    color: #ffffff;
+    /* vibrant blue for strong contrast on white */
     margin-bottom: 8px;
     font-weight: 700;
     opacity: 0.9;
@@ -2878,7 +3646,8 @@ header h1 {
     width: 100%;
     height: 6px;
     border-radius: 999px;
-    background: rgba(15, 23, 42, 0.12); /* subtle dark base */
+    background: rgba(15, 23, 42, 0.12);
+    /* subtle dark base */
     overflow: hidden;
     box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
 }
@@ -2888,7 +3657,8 @@ header h1 {
     inset: 0;
     width: 0%;
     border-radius: inherit;
-    background: linear-gradient(90deg, #f97316, #ea580c); /* vibrant blue gradient for strong contrast */
+    background: linear-gradient(90deg, #f97316, #ea580c);
+    /* vibrant blue gradient for strong contrast */
     box-shadow:
         0 0 0 1px rgba(37, 99, 235, 0.5),
         0 0 16px rgba(37, 99, 235, 0.4);
@@ -2912,20 +3682,20 @@ header h1 {
         max-width: 95%;
         max-height: 95vh;
     }
-    
+
     .instruction-modal .modal-header h2 {
         font-size: 24px;
     }
-    
+
     .instruction-section h3 {
         font-size: 22px;
     }
-    
+
     .instruction-body {
         padding: 20px;
         font-size: 16px;
     }
-    
+
     .instruction-section p,
     .instruction-list li,
     .instruction-subsection p,
@@ -2934,58 +3704,58 @@ header h1 {
     .faq-item p {
         font-size: 16px;
     }
-    
+
     .instruction-appraisals-table {
         font-size: 14px;
     }
-    
+
     .instruction-appraisals-table th {
         padding: 12px;
         font-size: 16px;
     }
-    
+
     .instruction-appraisals-table th:first-child {
         width: 30%;
         min-width: 150px;
     }
-    
+
     .instruction-appraisals-table td {
         padding: 12px;
         font-size: 15px;
     }
-    
+
     .instruction-appraisals-table .dimension-name {
         font-size: 16px;
     }
-    
+
     .instruction-appraisals-table .dimension-definition {
         font-size: 15px;
     }
-    
+
     .workflow-tasks {
         gap: 16px;
     }
-    
+
     .workflow-task {
         padding: 16px;
     }
-    
+
     .workflow-number {
         width: 32px;
         height: 32px;
         font-size: 18px;
     }
-    
+
     .workflow-task-header strong {
         font-size: 17px;
     }
-    
+
     .workflow-description,
     .workflow-howto {
         margin-left: 44px;
         font-size: 16px;
     }
-    
+
     .workflow-howto {
         padding: 10px 12px;
     }
@@ -2994,24 +3764,23 @@ header h1 {
         flex-wrap: wrap;
         gap: 8px;
     }
-    
+
     #show-instructions-btn {
         padding: 6px 12px;
         font-size: 14px;
         min-height: 32px;
     }
-    
+
     .user-badge {
         padding: 6px 12px;
         min-height: 32px;
     }
-    
+
     .username-text {
         font-size: 14px;
     }
-    
+
     .user-icon {
         font-size: 16px;
     }
 }
-

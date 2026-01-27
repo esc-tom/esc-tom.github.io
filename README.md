@@ -13,7 +13,7 @@ A web-based dialogue annotation tool for ESC-ToM (Emotional Support Conversation
 - **✏️ Utterance Editing**: Edit dialogue utterances to fix weird/unclear content
 - **🔐 User Management**: Register and login with username/password (Firebase Authentication)
 - **📝 BDI Annotations**: Review and revise pre-filled beliefs, desires, and intentions
-- **🧠 Cognitive Appraisals**: Modify pre-selected appraisal dimensions
+- **🧠 Cognitive Appraisals**: Two-step (hierarchical) selection — choose relevant coarse categories, then pick exactly 5 fine-grained dimensions and rank them
 - **🎯 Context Marking**: Mark the turn that provides minimum necessary context
 - **👤 Persona Profiles**: Display patient information including Big Five personality traits
 - **📊 Progress Tracking**: Track annotation progress across assigned dialogues
