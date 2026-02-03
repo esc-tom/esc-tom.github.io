@@ -36,10 +36,10 @@
     "description": "The patient attributes the cause of the event to themselves.",
     "dimensions": [
       {
-        "self_cause": "The patient caused the event themselves."
+        "self_cause": "The patient blames themselves for causing the event."
       },
       {
-        "self_control": "The patient has control over what is going on in the event."
+        "self_control": "The patient feels they could have prevented the event from happening."
       }
     ]
   },
@@ -47,10 +47,10 @@
     "description": "The patient attributes the cause of the event to someone else.",
     "dimensions": [
       {
-        "other_cause": "Someone/Something other than the patient caused the event."
+        "other_cause": "The patient blames someone else for causing the event."
       },
       {
-        "other_control": "Someone/Something other than the patient controls what is going on in the event."
+        "other_control": "The patient feels someone else was in control of the event."
       }
     ]
   },
