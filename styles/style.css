@@ -1829,19 +1829,58 @@ header h1 {
 
 .appraisal-item {
     display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 16px;
+    flex-direction: row;
+    /* Horizontal layout: Sidebar | Main Content */
+    padding: 0;
+    align-items: stretch;
+    /* Match height of sidebar to content */
     background: linear-gradient(to right, #ffffff, #fafbff);
     border: 2px solid #e0e4f0;
     border-radius: 10px;
     margin-bottom: 12px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    cursor: move;
     box-shadow: 0 2px 8px rgba(102, 126, 234, 0.08);
     position: relative;
     animation: fadeInSlide 0.4s ease-out;
+    overflow: hidden;
 }
+
+.appraisal-left-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    background: rgba(102, 126, 234, 0.05);
+    /* Subtle background for sidebar */
+    border-right: 1px solid #e2e8f0;
+    padding: 10px 0;
+    flex-shrink: 0;
+    gap: 8px;
+    cursor: move;
+}
+
+.appraisal-left-controls:hover {
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.appraisal-main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 12px 16px 16px 16px;
+    min-width: 0;
+}
+
+.appraisal-item-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    margin-bottom: 8px;
+}
+
 
 @keyframes fadeInSlide {
     from {
@@ -2241,6 +2280,45 @@ header h1 {
     font-size: 13px;
     color: #5a6c7d;
     line-height: 1.6;
+}
+
+gap: 12px;
+}
+
+.appraisal-rationale-container {
+    width: 100%;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.appraisal-rationale-input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 13px;
+    color: #334155;
+    resize: vertical;
+    min-height: 60px;
+    background: #f8fafc;
+    transition: all 0.2s ease;
+    display: block;
+    /* Ensure it takes full width */
+    box-sizing: border-box;
+    /* Include padding in width */
+}
+
+.appraisal-rationale-input:focus {
+    outline: none;
+    border-color: #667eea;
+    background: white;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+.appraisal-rationale-input::placeholder {
+    color: #94a3b8;
 }
 
 .appraisal-item-controls {

@@ -104,6 +104,47 @@ service cloud.firestore {
         // Allow delete (for cleanup operations)
         allow delete: if ownsParentUser();
       }
+      
+      // ============================================
+      // AGREEMENT ANNOTATIONS SUBCOLLECTION
+      // ============================================
+      match /agreement_annotations/{annotationId} {
+        // Helper to check if user owns the parent user document
+        // Supports both new custom ID system and old Auth UID system
+        function ownsParentUser() {
+          return isAuthenticated() && (
+            // Check 1: userId in path matches auth.uid (old system - backward compatibility)
+            // This covers users created before custom ID system
+            userId == request.auth.uid ||
+            // Check 2: parent document's authUid field matches authenticated user (new custom ID system)
+            // IMPORTANT: Check exists() first to prevent permission errors
+            (exists(/databases/$(database)/documents/users/$(userId)) && 
+             get(/databases/$(database)/documents/users/$(userId)).data.authUid == request.auth.uid)
+          );
+        }
+        
+        // Allow users to read their own agreement annotations
+        // userId here is the custom ID (participantId or username) or Auth UID from parent path
+        allow read: if ownsParentUser();
+        
+        // Allow users to create/update their own agreement annotations
+        // userId in annotation data should match the custom ID from parent path OR Auth UID (for backward compatibility)
+        allow create: if ownsParentUser()
+                      && request.resource.data.keys().hasAll(['userId', 'username', 'dialogueId'])
+                      && (request.resource.data.userId == userId || request.resource.data.userId == request.auth.uid)
+                      && request.resource.data.username is string
+                      && request.resource.data.dialogueId is string;
+        
+        allow update: if ownsParentUser()
+                      && (request.resource.data.userId == userId || request.resource.data.userId == request.auth.uid);
+        
+        // Allow write (for set with merge operations)
+        allow write: if ownsParentUser()
+                     && (request.resource.data.userId == userId || request.resource.data.userId == request.auth.uid);
+        
+        // Allow delete (for cleanup operations)
+        allow delete: if ownsParentUser();
+      }
     }
     
     // ============================================

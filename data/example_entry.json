@@ -29,31 +29,31 @@
         "cogapp_dims": [
             {
                 "rank": 1,
-                "justification": "Vanessa's thought centers on blame and self\u2011hatred for choosing work over Miso. An average person would hear \"I hate myself for choosing my work over her safety\" and interpret the event as caused by her own decision \u2014 she left Miso tied up and went to the meeting. That makes self_cause the most salient appraisal.",
+                "justification": "Vanessa's own decision to leave Miso tied up and go to the meeting caused the event and serves as a major source of her guilt and self-hatred.",
                 "appraisal_name": "self_cause",
                 "intensity_score": 10
             },
             {
                 "rank": 2,
-                "justification": "Her stated identity and intention were to protect Miso. The outcome (Miso terrified and possibly harmed) directly conflicts with that primary goal \u2014 she failed at what mattered most to her. The painful discrepancy between intention (protector) and outcome makes goal_incongruence highly salient.",
+                "justification": "Vanessa's intention was to protect Miso. The outcome directly conflicts with that primary goal.",
                 "appraisal_name": "goal_incongruence",
                 "intensity_score": 9
             },
             {
                 "rank": 3,
-                "justification": "She is haunted by Miso's terrified meows and by imagining physical harm; the consequences feel unbearable to her (guilt, loss, possible injury or death of the pet). An average listener would recognize that fear of terrible outcomes is a key part of her distress.",
+                "justification": "The consequences of Miso being terrified and possibly harmed feel unbearable to her.",
                 "appraisal_name": "unacceptable_consequences",
                 "intensity_score": 8
             },
             {
                 "rank": 4,
-                "justification": "Vanessa chose to leave Miso and tied her on the porch; that implies she had some control over the situation (could have stayed, secured the pet differently, or postponed the meeting). The sense that she could have done something different but didn't amplifies guilt and self\u2011blame.",
+                "justification": "Vanessa had control over her decision to leave Miso tied up and go to the meeting, which amplifies her guilt and self-blame.",
                 "appraisal_name": "self_control",
                 "intensity_score": 7
             },
             {
                 "rank": 5,
-                "justification": "The oak being struck by lightning and crashing in a storm is sudden and frightening. Although she ignored weather alerts, the exact damaging event (tree collapse) was unpredictable. The abrupt, violent nature of the accident contributes to her trauma and the haunting sensory memory of Miso's meows.",
+                "justification": "Vanessa was not expecting Miso to get hurt and this surprising event is a major source of her trauma and guilt.",
                 "appraisal_name": "unpredictability_of_event",
                 "intensity_score": 6
             }

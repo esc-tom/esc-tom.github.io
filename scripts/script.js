@@ -832,6 +832,25 @@ async function initializeApp() {
     setupTour();
     setupNotificationListeners();
     setupInstructionListeners(); // Setup instruction modal listeners after login
+
+    // Agreement Mode button listener
+    const agreementBtn = document.getElementById('load-agreement-btn');
+    if (agreementBtn) {
+        const allowedUsers = ["hainiu"];
+        if (allowedUsers.includes(currentUsername)) {
+            agreementBtn.disabled = false;
+            agreementBtn.addEventListener('click', toggleAgreementMode);
+            agreementBtn.title = "Switch to Agreement Annotation Mode";
+        } else {
+            agreementBtn.disabled = true;
+            agreementBtn.style.opacity = '0.5';
+            agreementBtn.style.cursor = 'not-allowed';
+            agreementBtn.title = "Access restricted to authorized users";
+            // Remove listener just in case it was added elsewhere (though it shouldn't be)
+            agreementBtn.removeEventListener('click', toggleAgreementMode);
+        }
+    }
+
     await checkAnnotationProgress();
 
     // Automatically load first unannotated dialogue or first dialogue
@@ -920,23 +939,24 @@ function setupTour() {
         },
         {
             selector: '#selected-appraisals',
-            title: 'Step 2.3: Rank Appraisal Dimensions',
-            body: 'Drag to rank the dimensions by dragging (1 = most important).',
+            title: 'Step 2.3: Rank & Explain',
+            body: 'Drag to rank the dimensions by importance (1 = most important).<br><br>Then, for each selected appraisal, provide a brief rationale explaining why you chose it.',
             placement: 'top',
-            audio: 'assets/audios/demo-7-3.wav'
+            audio: 'assets/audios/demo-7-3-new.wav'
         },
         {
             selector: '#dialogue-rating-section',
             title: 'Rate quality',
             body: 'Provide 1-5 star ratings for realism, persona, BDI, and appraisals.',
             placement: 'top',
+            scrollOffset: 200,
             audio: 'assets/audios/demo-8.wav'
         },
         {
             selector: '#save-btn',
             title: 'Save your work',
             body: 'Click Save. You’ll see a confirmation dialog—review the summary and confirm to submit.',
-            placement: 'left',
+            placement: 'top',
             audio: 'assets/audios/demo-9.wav'
         },
         {
@@ -1124,10 +1144,15 @@ function showTourStep() {
             animateAppraisalDimensionSelection();
         }
     } else if (step.selector === '#selected-appraisals') {
-        // Ranking animation runs automatically
-        demoRankingAnimation();
+        // Ranking animation runs automatically only for the ranking step
+        if (step.title.includes('Rank')) {
+            demoRankingAnimation();
+        }
     } else if (step.selector === '#dialogue-rating-section') {
-        animateDialogueRatingsForTour();
+        // Wait for potential scroll to complete before animating (approx 600-800ms for smooth scroll)
+        setTimeout(() => {
+            animateDialogueRatingsForTour();
+        }, 1000);
     } else {
         // For other steps, position cursor at the target element
         setTimeout(() => {
@@ -1395,7 +1420,7 @@ function showTourStep() {
     // Determine if we need to wait for animation
     if (step.selector === '#dialogue-container' ||
         step.selector === '#bdi-section' ||
-        step.selector === '#selected-appraisals' ||
+        (step.selector === '#selected-appraisals' && step.title.includes('Rank')) ||
         step.selector === '#dialogue-rating-section' ||
         (step.selector === '#appraisals-section' && (tourState.stepIndex === 6 || tourState.stepIndex === 7))) {
         tourState.animationFinished = false;
@@ -2529,9 +2554,8 @@ function startDemoRankingSequence() {
 
                                             // Re-enable Next button and advance to the next step after ranking animation completes
                                             setTimeout(() => {
-                                                // Button is now controlled by countdown timer
-                                                // setTourNextButtonEnabled(true);
-                                                // Don't auto-advance, wait for user to click Next (which enables after audio)
+                                                // Start rationale input animation AFTER ranking is fully done and DOM is stable
+                                                demoRationaleInputAnimation();
                                             }, 500);
                                         }, 100);
                                     }, 300);
@@ -2542,13 +2566,100 @@ function startDemoRankingSequence() {
                 }, 400);
             }, 500);
         }, 500);
+    }, 100);
+}
 
-        // Mark animation as finished after all sequences
-        setTimeout(() => {
+// Justifications from data/example_entry.json
+const DEMO_RATIONALES = {
+    'self_cause': "Vanessa's own decision to leave Miso tied up and go to the meeting caused the event and serves as a major source of her guilt and self-hatred.",
+    'goal_incongruence': "Vanessa's intention was to protect Miso. The outcome directly conflicts with that primary goal.",
+    'unacceptable_consequences': "The consequences of Miso being terrified and possibly harmed feel unbearable to her.",
+    'self_control': "Vanessa had control over her decision to leave Miso tied up and go to the meeting, which amplifies her guilt and self-blame.",
+    'unpredictability_of_event': "Vanessa was not expecting Miso to get hurt and this surprising event is a major source of her trauma and guilt."
+};
+
+function demoRationaleInputAnimation() {
+    const cursor = tourState.virtualCursor;
+    if (!cursor) {
+        tourState.animationFinished = true;
+        checkAdvanceCondition();
+        return;
+    }
+
+    const items = Array.from(document.querySelectorAll('.appraisal-item'));
+    if (items.length === 0) {
+        tourState.animationFinished = true;
+        checkAdvanceCondition();
+        return;
+    }
+
+    let itemIndex = 0;
+
+    function processNextItem() {
+        if (itemIndex >= items.length) {
+            // All inputs done
             tourState.animationFinished = true;
             checkAdvanceCondition();
-        }, 3000);
-    }, 100);
+            return;
+        }
+
+        const item = items[itemIndex];
+        const dimension = item.dataset.dimension;
+        const rationaleText = DEMO_RATIONALES[dimension];
+        const textarea = item.querySelector('.appraisal-rationale-input');
+
+        if (!rationaleText || !textarea) {
+            itemIndex++;
+            processNextItem();
+            return;
+        }
+
+        // Scroll item into view if needed
+        item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // Move cursor to textarea
+        setTimeout(() => {
+            const rect = textarea.getBoundingClientRect();
+            cursor.style.left = `${rect.left + 20}px`; // Start a bit inside
+            cursor.style.top = `${rect.top + 15}px`;
+            cursor.classList.remove('scrolling', 'dragging');
+
+            // Click
+            setTimeout(() => {
+                cursor.classList.add('clicking');
+                setTimeout(() => {
+                    cursor.classList.remove('clicking');
+                    textarea.focus();
+
+                    // Type text
+                    typeTextEffect(textarea, rationaleText, () => {
+                        // After typing, move to next
+                        itemIndex++;
+                        setTimeout(processNextItem, 500);
+                    });
+                }, 200);
+            }, 600); // Wait for cursor move
+        }, 600); // Wait for scroll
+    }
+
+    processNextItem();
+}
+
+function typeTextEffect(element, text, callback) {
+    let i = 0;
+    element.value = '';
+
+    // Typing speed: 10ms per char for demo speed (fast typing)
+    const interval = setInterval(() => {
+        element.value += text.charAt(i);
+        // Trigger input event to update model
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        i++;
+        if (i >= text.length) {
+            clearInterval(interval);
+            if (callback) callback();
+        }
+    }, 5);
 }
 
 
@@ -2847,16 +2958,113 @@ async function loadDialogues() {
 
         console.log(`Loaded ${allDialogues.length} dialogues with ground truth`);
 
-        // Load assigned dialogues for current user if logged in
-        if (currentUsername && firebaseReady) {
-            await loadAssignedDialogues();
-            populateDialogueSelector();
-        }
+        // Load assigned dialogues for current user if logged in (existing logic)
     } catch (error) {
         console.error('Error loading dialogues:', error);
-        showStatus('Error loading eval data. Make sure data/eval_data.json exists.', 'error');
     }
 }
+
+// Global state for agreement mode
+let isAgreementMode = false;
+
+// Load agreement data
+async function loadAgreementData() {
+    try {
+        const response = await fetch('data/agreement_data.json');
+        const data = await response.json();
+
+        console.log(`📊 Loading ${Object.keys(data).length} agreement dialogues...`);
+
+        allDialogues = [];
+        for (const [entryId, entryData] of Object.entries(data)) {
+            // Transform dialogue_history
+            const transformedHistory = (entryData.dialogue_history || []).map(turn => ({
+                speaker: turn.speaker.toLowerCase(),
+                utterance: turn.content
+            }));
+
+            const dialogue = {
+                'entry_id': entryId,
+                'dialogue_history': transformedHistory,
+                'situation': entryData.situation || '',
+                'thought': entryData.thought || ''
+            };
+
+            if (entryData.persona_profile) {
+                dialogue['persona_profile'] = entryData.persona_profile;
+            }
+
+            if (entryData.bdi || entryData.cogapp_dims) {
+                dialogue['ground_truth'] = {
+                    belief: entryData.bdi?.belief?.content || '',
+                    desire: entryData.bdi?.desire?.content || '',
+                    intention: entryData.bdi?.intention?.content || '',
+                    cognitive_appraisals: (entryData.cogapp_dims || [])
+                        .sort((a, b) => a.rank - b.rank)
+                        .slice(0, 5)
+                        .map(dim => dim.appraisal_name)
+                };
+            }
+
+            allDialogues.push(dialogue);
+        }
+
+        console.log(`Loaded ${allDialogues.length} agreement dialogues`);
+        return true;
+    } catch (error) {
+        console.error('Error loading agreement data:', error);
+        alert('Failed to load agreement data. Please clean cache and try again.');
+        return false;
+    }
+}
+
+async function toggleAgreementMode() {
+    const btn = document.getElementById('load-agreement-btn');
+
+    if (!isAgreementMode) {
+        // Switch TO Agreement Mode
+        const success = await loadAgreementData();
+        if (success) {
+            isAgreementMode = true;
+            btn.classList.add('btn-warning'); // Visual indicator
+            btn.textContent = "❌ Exit Agreement Mode";
+
+            // Re-render dropdown
+            populateDialogueSelector();
+
+            // Load first dialogue
+            if (allDialogues.length > 0) {
+                dialogueSelect.value = 0;
+                loadDialogue(0);
+            }
+
+            alert("Agreement Mode Enabled: Loading data from agreement_data.json");
+        }
+    } else {
+        // Switch OUT OF Agreement Mode (Reload page/app logic)
+        isAgreementMode = false;
+        btn.classList.remove('btn-warning');
+        btn.textContent = "📊 Agreement Annotation";
+
+        // Reload original dialogues
+        await loadDialogues(); // This reloads eval_data.json
+
+        if (currentUsername && firebaseReady) {
+            await loadAssignedDialogues();
+        }
+
+        // Setup dropdown for regular mode
+        populateDialogueSelector();
+
+        // Reset view
+        document.getElementById('dialogue-container').innerHTML = '<p class="placeholder">Select a dialogue to start.</p>';
+        document.getElementById('current-dialogue-info').textContent = '';
+
+        alert("Exited Agreement Mode. Restored evaluation data.");
+    }
+}
+// End of toggleAgreementMode
+
 
 // Load assigned dialogues for current user
 async function loadAssignedDialogues() {
@@ -3076,7 +3284,8 @@ async function checkAnnotationProgress() {
     let totalToAnnotate = allDialogues.length;
 
     try {
-        const annotatedDialogues = await firebaseStorage.getUserAnnotations();
+        const collectionName = isAgreementMode ? 'agreement_annotations' : 'annotations';
+        const annotatedDialogues = await firebaseStorage.getUserAnnotations(collectionName);
 
         // Check annotation status for all dialogues
         for (let i = 0; i < allDialogues.length; i++) {
@@ -3084,14 +3293,25 @@ async function checkAnnotationProgress() {
             const isAnnotated = annotatedDialogues.includes(dialogue.entry_id);
             annotationStatus[dialogue.entry_id] = isAnnotated;
 
-            // Only count if it's in the user's assigned dialogues
-            if (isAnnotated && (assignedDialogues.length === 0 || assignedDialogues.includes(dialogue.entry_id))) {
-                annotatedCount++;
+            // Only count if it's in the user's assigned dialogues (unless in agreement mode)
+            if (isAnnotated) {
+                if (isAgreementMode) {
+                    // In agreement mode, count all annotated agreement dialogues
+                    annotatedCount++;
+                } else if (assignedDialogues.length === 0 || assignedDialogues.includes(dialogue.entry_id)) {
+                    // In regular mode, only count if assigned
+                    annotatedCount++;
+                }
             }
         }
 
         // Show progress relative to assigned dialogues
-        totalToAnnotate = assignedDialogues.length > 0 ? assignedDialogues.length : allDialogues.length;
+        // Show progress relative to assigned dialogues (or all in agreement mode)
+        if (isAgreementMode) {
+            totalToAnnotate = allDialogues.length;
+        } else {
+            totalToAnnotate = assignedDialogues.length > 0 ? assignedDialogues.length : allDialogues.length;
+        }
         console.log(`📊 Progress: ${annotatedCount}/${totalToAnnotate} dialogues annotated`);
     } catch (error) {
         console.error('Error checking progress:', error);
@@ -3122,8 +3342,9 @@ async function findFirstUnannotatedDialogue() {
         const dialogue = allDialogues[i];
 
         // Only consider dialogues that are assigned to the current user
-        if (assignedDialogues.length > 0 && !assignedDialogues.includes(dialogue.entry_id)) {
-            continue; // Skip dialogues not assigned to this user
+        // But in Agreement Mode, ignore assignments and check all loaded dialogues
+        if (!isAgreementMode && assignedDialogues.length > 0 && !assignedDialogues.includes(dialogue.entry_id)) {
+            continue; // Skip dialogues not assigned to this user (regular mode only)
         }
 
         if (!annotationStatus[dialogue.entry_id]) {
@@ -3140,7 +3361,10 @@ function populateDialogueSelector() {
     // Only show assigned dialogues if user is logged in and has assignments
     let dialoguesToShow = allDialogues;
 
-    if (currentUsername) {
+    if (isAgreementMode) {
+        // In agreement mode, show all loaded agreement dialogues
+        console.log(`📊 Showing all ${allDialogues.length} agreement dialogues`);
+    } else if (currentUsername) {
         if (assignedDialogues.length > 0) {
             // Filter to show only assigned dialogues
             dialoguesToShow = allDialogues.filter(d => assignedDialogues.includes(d.entry_id));
@@ -3993,7 +4217,8 @@ async function getAnnotationFromStorage(entryId) {
     }
 
     try {
-        const annotation = await firebaseStorage.loadAnnotation(currentUsername, entryId);
+        const collectionName = isAgreementMode ? 'agreement_annotations' : 'annotations';
+        const annotation = await firebaseStorage.loadAnnotation(currentUsername, entryId, collectionName);
         return annotation;
     } catch (error) {
         console.error('Error loading annotation:', error);
@@ -4001,7 +4226,7 @@ async function getAnnotationFromStorage(entryId) {
     }
 }
 
-async function saveAnnotationToStorage(entryId, annotation) {
+async function saveAnnotationToStorage(entryId, annotation, collectionName = 'annotations') {
     // Ensure Firebase is initialized
     if (!firebaseReady) {
         const success = await initFirebaseStorage();
@@ -4021,8 +4246,8 @@ async function saveAnnotationToStorage(entryId, annotation) {
     }
 
     try {
-        await firebaseStorage.saveAnnotation(currentUsername, entryId, annotation);
-        console.log(`✅ Saved to Firebase: ${entryId}`);
+        await firebaseStorage.saveAnnotation(currentUsername, entryId, annotation, collectionName);
+        console.log(`✅ Saved to Firebase (${collectionName}): ${entryId}`);
         return true;
     } catch (error) {
         console.error('❌ Error saving annotation to storage:', error);
@@ -4544,7 +4769,8 @@ function addAppraisal(key, description, category) {
     selectedAppraisals.push({
         dimension: key,
         description: description,
-        category: category // Store the coarse category for reference
+        category: category, // Store the coarse category for reference
+        rationale: ''       // Initialize rationale as empty string
     });
 
     renderSelectedAppraisals();
@@ -4607,6 +4833,30 @@ function renderSelectedAppraisals() {
         const controlsContainer = document.createElement('div');
         controlsContainer.className = 'appraisal-item-controls';
 
+        // Rationale Input
+        const rationaleContainer = document.createElement('div');
+        rationaleContainer.className = 'appraisal-rationale-container';
+
+        const rationaleInput = document.createElement('textarea');
+        rationaleInput.className = 'appraisal-rationale-input';
+        rationaleInput.placeholder = 'Rationale for selection...';
+        rationaleInput.value = appraisal.rationale || '';
+        rationaleInput.rows = 2;
+
+        // Prevent drag when interacting with textarea
+        rationaleInput.draggable = true;
+        rationaleInput.addEventListener('dragstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        // Update model on input
+        rationaleInput.addEventListener('input', (e) => {
+            appraisal.rationale = e.target.value;
+        });
+
+        rationaleContainer.appendChild(rationaleInput);
+
         const removeBtn = document.createElement('button');
         removeBtn.className = 'appraisal-item-remove';
         removeBtn.textContent = '✕';
@@ -4615,11 +4865,31 @@ function renderSelectedAppraisals() {
 
         controlsContainer.appendChild(removeBtn);
 
-        // Assemble the item
-        item.appendChild(dragHandle);
-        item.appendChild(rankNum);
-        item.appendChild(contentContainer);
-        item.appendChild(controlsContainer);
+        // Create Left Sidebar (Drag Handle + Rank)
+        const leftControls = document.createElement('div');
+        leftControls.className = 'appraisal-left-controls';
+        leftControls.appendChild(dragHandle);
+        leftControls.appendChild(rankNum);
+
+        // Create Main Content Area
+        const mainContent = document.createElement('div');
+        mainContent.className = 'appraisal-main-content';
+
+        // Header within main content (Label + Remove Btn)
+        const headerRow = document.createElement('div');
+        headerRow.className = 'appraisal-item-header';
+
+        // Assemble header row
+        headerRow.appendChild(contentContainer);
+        headerRow.appendChild(controlsContainer);
+
+        // Assemble Main Content (Header + Rationale)
+        mainContent.appendChild(headerRow);
+        mainContent.appendChild(rationaleContainer);
+
+        // Assemble Item (Left Sidebar + Main Content)
+        item.appendChild(leftControls);
+        item.appendChild(mainContent);
 
         // Add drag event listeners
         item.addEventListener('dragstart', handleDragStart);
@@ -5085,6 +5355,13 @@ function calculateAppraisalEditStats() {
 async function performSave() {
     hideConfirmModal();
 
+    // Validate that all appraisals have a rationale
+    const missingRationale = selectedAppraisals.some(a => !a.rationale || a.rationale.trim() === '');
+    if (missingRationale) {
+        showStatus('❌ Please provide a rationale for all selected appraisals.', 'error', 4000);
+        return;
+    }
+
     // Build BDI with edit markers relative to ground truth (pre-event) if available
     let beliefValue = '';
     let desireValue = '';
@@ -5188,7 +5465,8 @@ async function performSave() {
 
     try {
         // Save to Firebase
-        await saveAnnotationToStorage(currentDialogue.entry_id, annotation);
+        const collectionName = isAgreementMode ? 'agreement_annotations' : 'annotations';
+        await saveAnnotationToStorage(currentDialogue.entry_id, annotation, collectionName);
 
         // Track annotations without BDI edits (for assessment purposes)
         const hasNoBdiEdits = bdiEditSpans === 0;
@@ -5209,12 +5487,17 @@ async function performSave() {
         // Update annotation status and progress bar
         annotationStatus[currentDialogue.entry_id] = true;
 
-        // Recompute annotated count over assigned dialogues only
-        let annotatedCount = 0;
-        const relevantIds = assignedDialogues.length > 0
-            ? assignedDialogues
-            : allDialogues.map(d => d.entry_id);
+        // Recompute annotated count logic
+        let relevantIds = [];
+        if (isAgreementMode) {
+            relevantIds = allDialogues.map(d => d.entry_id);
+        } else {
+            relevantIds = assignedDialogues.length > 0
+                ? assignedDialogues
+                : allDialogues.map(d => d.entry_id);
+        }
 
+        let annotatedCount = 0;
         for (const id of relevantIds) {
             if (annotationStatus[id]) annotatedCount++;
         }
@@ -5255,9 +5538,14 @@ async function performSave() {
             }, 1500);
         } else {
             // All dialogues completed!
-            const completionMsg = assignedDialogues.length > 0
-                ? `🎉 All ${assignedDialogues.length} assigned dialogues completed!`
-                : '🎉 All dialogues completed!';
+            let completionMsg = "";
+            if (isAgreementMode) {
+                completionMsg = "🎉 All agreement dialogues completed!";
+            } else {
+                completionMsg = assignedDialogues.length > 0
+                    ? `🎉 All ${assignedDialogues.length} assigned dialogues completed!`
+                    : '🎉 All dialogues completed!';
+            }
             showStatus(completionMsg, 'success');
 
             // Show feedback modal (unless already submitted)
