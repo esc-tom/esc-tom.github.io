@@ -1066,7 +1066,12 @@ function createTourElements() {
     window.addEventListener('touchmove', preventScroll, { passive: false });
 
     // Prevent keyboard scrolling
-    window.addEventListener('keydown', (e) => {
+    const preventKeyboardScroll = (e) => {
+        // Allow typing in inputs/textareas
+        if (e.target.matches('input, textarea, [contenteditable]')) {
+            return;
+        }
+
         // Prevent arrow keys, page up/down, home/end, spacebar from scrolling
         if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) {
             // Allow if focus is on tooltip buttons
@@ -1074,7 +1079,10 @@ function createTourElements() {
                 preventScroll(e);
             }
         }
-    });
+    };
+
+    tourState.keyboardScrollPrevention = preventKeyboardScroll;
+    window.addEventListener('keydown', preventKeyboardScroll);
 
     // Block ALL user events in capture phase
     ['click', 'mousedown', 'mouseup', 'pointerdown', 'pointerup', 'keydown', 'keypress', 'keyup'].forEach(evt => {
@@ -2845,6 +2853,11 @@ function endTour() {
         window.removeEventListener('wheel', tourState.scrollPrevention);
         window.removeEventListener('touchmove', tourState.scrollPrevention);
         tourState.scrollPrevention = null;
+    }
+
+    if (tourState.keyboardScrollPrevention) {
+        window.removeEventListener('keydown', tourState.keyboardScrollPrevention);
+        tourState.keyboardScrollPrevention = null;
     }
 
     // Cleanup global interaction blockers
