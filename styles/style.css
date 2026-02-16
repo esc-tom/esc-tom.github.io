@@ -452,6 +452,14 @@ header h1 {
     font-style: italic;
 }
 
+.annotation-hidden {
+    color: #ffffff;
+    font-size: 10px;
+    margin-top: -5px;
+    margin-bottom: 0px;
+    font-style: italic;
+}
+
 .dialogue-container {
     min-height: 500px;
     max-height: 1200px;
@@ -792,10 +800,33 @@ header h1 {
     height: 350px;
 }
 
+
 .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     filter: grayscale(0.3);
+}
+
+/* Anti-AI / Anti-Copy protection */
+.no-select {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.honey-pot {
+    opacity: 0;
+    position: absolute;
+    left: -9999px;
+    height: 0;
+    width: 0;
+    pointer-events: none;
+    user-select: none;
+}
+
+img {
+    pointer-events: none;
 }
 
 .btn-primary {
@@ -2282,8 +2313,7 @@ header h1 {
     line-height: 1.6;
 }
 
-gap: 12px;
-}
+
 
 .appraisal-rationale-container {
     width: 100%;
