@@ -448,7 +448,7 @@ header h1 {
     color: #7f8c8d;
     font-size: 14px;
     margin-top: -5px;
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     font-style: italic;
 }
 
@@ -3888,7 +3888,80 @@ img {
         font-size: 14px;
     }
 
-    .user-icon {
-        font-size: 16px;
-    }
+
+}
+
+/* Tour Menu Modal */
+.tour-menu-content {
+    max-width: 600px;
+    position: relative;
+    /* Ensure absolute positioning of close button works */
+}
+
+/* Specific close button positioning for tour menu */
+.tour-menu-content .modal-close-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    margin: 0;
+}
+
+.tour-menu-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 20px;
+    max-height: 50vh;
+    overflow-y: auto;
+    padding-right: 8px;
+    /* Prevent scrollbar from overlapping content */
+}
+
+.tour-menu-btn {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: left;
+    width: 100%;
+}
+
+.tour-menu-btn:hover {
+    border-color: var(--primary-color);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.tour-menu-btn .btn-icon {
+    font-size: 24px;
+    background: #f3f4f6;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.tour-menu-btn .btn-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tour-menu-btn .btn-title {
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 15px;
+}
+
+.tour-menu-btn .btn-desc {
+    color: var(--text-secondary);
+    font-size: 13px;
 }

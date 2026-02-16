@@ -963,7 +963,8 @@ let tourState = {
     virtualCursor: null,
     audioFinished: false,
     animationFinished: true,
-    active: false
+    active: false,
+    sectionEndIndex: -1 // Track end index for section playback
 };
 
 function setupTour() {
@@ -1030,7 +1031,7 @@ function setupTour() {
             selector: '#selected-appraisals',
             title: 'Step 2.3: Rank & Explain',
             body: 'Drag to rank the dimensions by importance (1 = most important).<br><br>Then, for each selected appraisal, provide a one-sentence rationale explaining why you believe the appraisal to be impactful on the patient\'s emotional response.',
-            placement: 'top',
+            placement: 'left',
             audio: 'assets/audios/demo-7-3-new.wav'
         },
         {
@@ -1059,12 +1060,139 @@ function setupTour() {
 }
 
 function startTour(force = false) {
-    if (!force && localStorage.getItem(STORAGE_KEYS.TOUR_SEEN)) return;
+    // If not forced and user has seen tour, show menu instead
+    if (!force && localStorage.getItem(STORAGE_KEYS.TOUR_SEEN)) {
+        showTourMenu();
+        return;
+    }
+
     tourState.active = true;
+    tourState.sectionEndIndex = -1; // Reset section end index (full tour)
     createTourElements();
     tourState.stepIndex = 0;
     showTourStep();
     startCursorAutoScroll(); // Start monitoring cursor visibility
+}
+
+function showTourMenu() {
+    const modal = document.getElementById('tour-menu-modal');
+    if (!modal) return;
+
+    modal.classList.add('show');
+
+    // Setup listeners if not already done
+    if (!modal.dataset.listenersBound) {
+        // Section buttons
+        const sectionBtns = modal.querySelectorAll('.tour-menu-btn');
+        sectionBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const start = parseInt(btn.dataset.start);
+                const end = parseInt(btn.dataset.end);
+
+                // Hide menu immediately
+                modal.classList.remove('show');
+
+                // Small delay to allow UI to update before starting heavy logic
+                setTimeout(() => {
+                    startTourSection(start, end);
+                }, 50);
+            });
+        });
+
+        // Restart full tour
+        const restartBtn = document.getElementById('restart-full-tour-btn');
+        if (restartBtn) {
+            restartBtn.addEventListener('click', () => {
+                // Hide menu immediately
+                modal.classList.remove('show');
+
+                setTimeout(() => {
+                    startTour(true); // Force start
+                }, 50);
+            });
+        }
+
+        // Close button
+        const closeBtn = document.getElementById('close-tour-menu');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                modal.classList.remove('show');
+            });
+        }
+
+        modal.dataset.listenersBound = 'true';
+    }
+}
+
+function startTourSection(startIndex, endIndex) {
+    tourState.active = true;
+    tourState.sectionEndIndex = endIndex;
+    createTourElements();
+
+    // Restore state if jumping to later sections
+    restoreDemoState(startIndex);
+
+    tourState.stepIndex = startIndex;
+    showTourStep();
+    startCursorAutoScroll();
+}
+
+function restoreDemoState(targetIndex) {
+    // If jumping to Appraisal Dimensions (Step 7) or later, we need coarse categories selected
+    if (targetIndex >= 7) {
+        // Appraisals used in the demo (Categories)
+        // Must match keys in cognitive_dimensions_hierchical.json
+        const demoCoarseCategories = [
+            'Suddenness & Familiarity', // Index 0
+            'Event Predictability',     // Index 1
+            'Cause & Responsibility',   // Index 3
+            'Goal & Norm Conflict',     // Index 5
+            'Coping & Impact Severity'  // Index 6
+        ];
+
+        selectedCoarseAppraisals = [...demoCoarseCategories];
+        appraisalPhase = 1;
+        renderAppraisalOptions();
+        updateAppraisalOptions();
+
+        // Ensure section is expanded
+        const appraisalsSection = document.getElementById('appraisals-section');
+        if (appraisalsSection) {
+            const header = appraisalsSection.querySelector('.section-header');
+            const content = appraisalsSection.querySelector('.section-content');
+            if (header && content && header.classList.contains('collapsed')) {
+                header.classList.remove('collapsed');
+                content.classList.remove('collapsed');
+            }
+        }
+    }
+
+    // If jumping to Ranking (Step 8) or later, we need specific appraisals selected
+    if (targetIndex >= 8) {
+        // Specific appraisals used in the demo
+        // These keys must match the ones in cognitiveDimensions
+        selectedAppraisals = [
+            { dimension: 'self_cause', category: 'Cause & Responsibility' },
+            { dimension: 'unpredictability_of_event', category: 'Event Predictability' },
+            { dimension: 'unacceptable_consequences', category: 'Coping & Impact Severity' },
+            { dimension: 'self_control', category: 'Cause & Responsibility' },
+            { dimension: 'goal_incongruence', category: 'Goal & Norm Conflict' }
+        ];
+
+        // Add descriptions by looking them up
+        selectedAppraisals.forEach(appraisal => {
+            const catData = cognitiveDimensions[appraisal.category];
+            if (catData) {
+                const dimObj = catData.dimensions.find(d => Object.keys(d)[0] === appraisal.dimension);
+                if (dimObj) {
+                    appraisal.description = Object.values(dimObj)[0];
+                }
+            }
+        });
+
+        appraisalPhase = 2; // Move to ranking phase
+        renderSelectedAppraisals();
+    }
 }
 
 function checkAdvanceCondition() {
@@ -1076,8 +1204,18 @@ function checkAdvanceCondition() {
     const nextBtn = tourState.tooltip?.querySelector('.tour-next');
     if (!nextBtn) return;
 
-    const originalText = tourState.stepIndex === tourState.steps.length - 1 ? 'Finish' : 'Next';
-    nextBtn.textContent = originalText;
+    // Check if we are at the end of a section
+    const isSectionEnd = tourState.sectionEndIndex !== -1 && tourState.stepIndex === tourState.sectionEndIndex;
+    const isTourEnd = tourState.stepIndex === tourState.steps.length - 1;
+
+    let buttonText = 'Next';
+    if (isSectionEnd) {
+        buttonText = 'Back to Menu';
+    } else if (isTourEnd) {
+        buttonText = 'Finish';
+    }
+
+    nextBtn.textContent = buttonText;
     nextBtn.disabled = false;
     nextBtn.classList.remove('disabled');
 }
@@ -1554,7 +1692,7 @@ function positionTour() {
         step.selector === '#appraisals-section' ||
         step.selector === '#bdi-section';
 
-    if (isAnnotationSection) {
+    if (isAnnotationSection && step.selector !== '#selected-appraisals') {
         // Determine if element is on left or right side of viewport
         const viewportWidth = window.innerWidth;
         const elementCenterX = rect.left + rect.width / 2;
@@ -2895,6 +3033,13 @@ function animateDialogueRatingsForTour() {
 }
 
 function tourNext() {
+    // Check if we are at the end of a specific section
+    if (tourState.sectionEndIndex !== -1 && tourState.stepIndex === tourState.sectionEndIndex) {
+        endTour();
+        showTourMenu();
+        return;
+    }
+
     if (tourState.stepIndex < tourState.steps.length - 1) {
         const currentStep = tourState.steps[tourState.stepIndex];
 
@@ -3206,7 +3351,7 @@ async function loadAssignedDialogues() {
 // Load example entry as demo
 async function startDemoTour() {
     await loadDemoEntry();
-    startTour(true);
+    startTour(false);
 }
 
 async function loadDemoEntry() {
