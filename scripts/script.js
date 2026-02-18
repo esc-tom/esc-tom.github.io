@@ -405,6 +405,12 @@ async function handleProlificSession() {
                     const lastSessionId = prolificUser.prolific?.sessionId;
                     const newSessionId = prolificParams.sessionId;
 
+                    logProlificInfo('Completion check: comparing session IDs', {
+                        lastSessionId: lastSessionId || '(none)',
+                        newSessionId: newSessionId || '(none)',
+                        areDifferent: newSessionId && lastSessionId !== newSessionId
+                    });
+
                     if (newSessionId && lastSessionId !== newSessionId) {
                         logProlificInfo('Participant completed previous work but is returning with a NEW session ID - assigning new dialogues');
 
@@ -442,8 +448,12 @@ async function handleProlificSession() {
                             // 5. Skip Tour for returning user
                             localStorage.setItem(STORAGE_KEYS.TOUR_SEEN, 'true');
 
-                            // 6. Proceed to resume (do NOT return here, let it fall through to resume logic)
-                            // We need to update currentUsername and set custom ID below
+                            // 6. Update prolificUser object with new assignments so resume logic uses correct data
+                            prolificUser.assignedDialogues = updatedAssignments;
+                            prolificUser.prolific = prolificUser.prolific || {};
+                            prolificUser.prolific.sessionId = newSessionId;
+
+                            // 7. Continue to resume logic below (do NOT return here)
 
                         } catch (error) {
                             console.error('Error updating profile for new session:', error);
@@ -475,9 +485,11 @@ async function handleProlificSession() {
                     }
                 }
 
-                // Get assigned dialogues - ALWAYS use what's stored, NEVER modify during resume
-                // The original 5 dialogues assigned at registration must be preserved
-                assignedDialogues = prolificUser.assignedDialogues || [];
+                // Get assigned dialogues - use updated value if new dialogues were assigned above, otherwise use stored value
+                // The assignedDialogues variable may have been updated above when new dialogues were assigned
+                if (!assignedDialogues || assignedDialogues.length === 0) {
+                    assignedDialogues = prolificUser.assignedDialogues || [];
+                }
                 if (assignedDialogues.length === 0) {
                     console.warn('⚠️ WARNING: User profile has no assigned dialogues - this should not happen');
                 } else {
@@ -641,8 +653,9 @@ async function handleSonaSession() {
                     return;
                 }
 
-                // Sample dialogues for the test user
-                assignedDialogues = sampleDialogues(10, []);
+                // Sample dialogues for the test user (take only DIALOGUES_PER_USER from the pool)
+                const sampledPool = await sampleDialogues(DIALOGUES_PER_USER, []);
+                assignedDialogues = sampledPool.slice(0, DIALOGUES_PER_USER);
 
                 // Create user profile with Sona metadata
                 await firebaseStorage.db.collection('users').doc(registerResult.uid).set({
@@ -796,8 +809,9 @@ async function handleSonaSession() {
             return;
         }
 
-        // Sample dialogues for new participant
-        assignedDialogues = sampleDialogues(10, []);
+        // Sample dialogues for new participant (take only DIALOGUES_PER_USER from the pool)
+        const sampledPool = await sampleDialogues(DIALOGUES_PER_USER, []);
+        assignedDialogues = sampledPool.slice(0, DIALOGUES_PER_USER);
 
         // Create user profile with Sona metadata
         await firebaseStorage.db.collection('users').doc(registerResult.uid).set({
@@ -3516,18 +3530,11 @@ async function loadDemoEntry() {
     }
 }
 
-// Sample N dialogues without replacement
-// Sample N dialogues - Now just returns candidates for the Transaction to verify
-// We shuffle efficiently here, but the Transaction is the final authority on availability
 async function sampleDialogues(n, excludeIds = []) {
     try {
         if (allDialogues.length === 0) {
             throw new Error('Dialogues not loaded');
         }
-
-        // We return MORE than n candidates to give the transaction options if some are taken
-        const SAFETY_FACTOR = 5;
-        const REQUEST_COUNT = Math.max(n * SAFETY_FACTOR, 50);
 
         // Filter locally known exclusions first
         const candidates = allDialogues
@@ -3541,8 +3548,8 @@ async function sampleDialogues(n, excludeIds = []) {
         // Shuffle
         const shuffled = candidates.sort(() => Math.random() - 0.5);
 
-        // Return a large pool for the transaction to pick from
-        return shuffled.slice(0, REQUEST_COUNT);
+        // Return exactly n (or fewer, if not enough available) dialogues
+        return shuffled.slice(0, n);
     } catch (error) {
         console.error('Error in sampleDialogues:', error);
         throw error;
@@ -7182,7 +7189,7 @@ function showSonaWelcome() {
     const message = `
         <div style="padding: 20px; background: #e7f3ff; border: 2px solid #2196F3; border-radius: 8px; margin: 20px;">
             <h3 style="margin-top: 0; color: #1976D2;">👋 Welcome Sona Participant!</h3>
-            <p>Thank you for participating in our study. You have been assigned <strong>10 unique dialogues</strong> to annotate.</p>
+            <p>Thank you for participating in our study. You have been assigned <strong>${DIALOGUES_PER_USER} unique dialogues</strong> to annotate.</p>
             <p><strong>Instructions:</strong></p>
             <ul style="text-align: left; margin: 10px 0;">
                 <li>Review each dialogue carefully</li>
