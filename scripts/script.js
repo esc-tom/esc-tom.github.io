@@ -128,6 +128,10 @@ async function init() {
         await initFirebaseStorage();
     }
 
+    // Initialize/Sync the global assignments tracker (Migration/Reclamation check)
+    // This is "fire and forget" - we don't await it to block UI, but it runs in background.
+    firebaseStorage.ensureGlobalAssignmentsInitialized();
+
     // Wait for persisted Firebase auth session (if any)
     const authUser = await firebaseStorage.waitForAuthReady();
     if (authUser) {
@@ -397,11 +401,62 @@ async function handleProlificSession() {
                 const isCompleted = await firebaseStorage.hasCompletedAllAnnotations(prolificUser.uid);
 
                 if (isCompleted) {
-                    // Already completed - show completion message
-                    logProlificInfo('Participant has already completed all annotations');
-                    hideLoginModal();
-                    showProlificCompletionMessage();
-                    return;
+                    // Check if this is a NEW session (different from the last recorded one)
+                    const lastSessionId = prolificUser.prolific?.sessionId;
+                    const newSessionId = prolificParams.sessionId;
+
+                    if (newSessionId && lastSessionId !== newSessionId) {
+                        logProlificInfo('Participant completed previous work but is returning with a NEW session ID - assigning new dialogues');
+
+                        // User is returning for another batch!
+                        // 1. Get current assigned dialogues (to exclude)
+                        const currentAssigned = prolificUser.assignedDialogues || [];
+
+                        // 2. Sample 5 NEW dialogues
+                        const newDialogues = await sampleDialogues(DIALOGUES_PER_USER, currentAssigned);
+
+                        if (newDialogues.length === 0) {
+                            console.warn('No more dialogues available to assign!');
+                            showProlificError('No more dialogues available for annotation. Thank you for your interest!');
+                            return;
+                        }
+
+                        // 3. Append new dialogues to assignment
+                        // We keep the old ones in history but appended new ones to the active list logic
+                        // In this app, assignedDialogues is the full list. 
+                        // The progress text shows "X / Total" so it will just increase the total.
+                        const updatedAssignments = [...currentAssigned, ...newDialogues];
+
+                        // 4. Update Firestore
+                        try {
+                            await firebaseStorage.db.collection('users').doc(prolificUser.uid).update({
+                                assignedDialogues: updatedAssignments,
+                                'prolific.sessionId': newSessionId,
+                                'prolific.lastResumedAt': firebase.firestore.FieldValue.serverTimestamp(),
+                                'prolific.participationCount': firebase.firestore.FieldValue.increment(1)
+                            });
+
+                            assignedDialogues = updatedAssignments;
+                            logProlificInfo(`Assigned ${newDialogues.length} new dialogues. Total assigned: ${updatedAssignments.length}`);
+
+                            // 5. Skip Tour for returning user
+                            localStorage.setItem(STORAGE_KEYS.TOUR_SEEN, 'true');
+
+                            // 6. Proceed to resume (do NOT return here, let it fall through to resume logic)
+                            // We need to update currentUsername and set custom ID below
+
+                        } catch (error) {
+                            console.error('Error updating profile for new session:', error);
+                            showProlificError('Error assigning new dialogues. Please contact the researcher.');
+                            return;
+                        }
+                    } else {
+                        // Same session and already completed - show completion message
+                        logProlificInfo('Participant has already completed all annotations (same session)');
+                        hideLoginModal();
+                        showProlificCompletionMessage();
+                        return;
+                    }
                 }
 
                 logProlificInfo('Participant has not completed all annotations, proceeding to resume session');
@@ -1060,9 +1115,9 @@ function setupTour() {
 }
 
 function startTour(force = false) {
-    // If not forced and user has seen tour, show menu instead
+    // If not forced and user has seen tour, show WELCOME BACK modal instead of menu directly
     if (!force && localStorage.getItem(STORAGE_KEYS.TOUR_SEEN)) {
-        showTourMenu();
+        showWelcomeBackModal();
         return;
     }
 
@@ -1072,6 +1127,28 @@ function startTour(force = false) {
     tourState.stepIndex = 0;
     showTourStep();
     startCursorAutoScroll(); // Start monitoring cursor visibility
+}
+
+function showWelcomeBackModal() {
+    const modal = document.getElementById('welcome-back-modal');
+    if (!modal) return;
+
+    modal.classList.add('show');
+
+    // Bind listeners if not already bound
+    if (!modal.dataset.listenersBound) {
+        document.getElementById('welcome-start-btn')?.addEventListener('click', () => {
+            modal.classList.remove('show');
+            // User skips tour - do nothing (they are already on the annotation page)
+        });
+
+        document.getElementById('welcome-menu-btn')?.addEventListener('click', () => {
+            modal.classList.remove('show');
+            showTourMenu(); // Show the actual tour menu
+        });
+
+        modal.dataset.listenersBound = 'true';
+    }
 }
 
 function showTourMenu() {
@@ -3440,52 +3517,35 @@ async function loadDemoEntry() {
 }
 
 // Sample N dialogues without replacement
+// Sample N dialogues - Now just returns candidates for the Transaction to verify
+// We shuffle efficiently here, but the Transaction is the final authority on availability
 async function sampleDialogues(n, excludeIds = []) {
     try {
-        // Ensure dialogues are loaded
         if (allDialogues.length === 0) {
-            console.error('Cannot sample dialogues: allDialogues is empty!');
-            throw new Error('Dialogues not loaded. Please refresh the page.');
+            throw new Error('Dialogues not loaded');
         }
 
-        if (!firebaseReady) {
-            await initFirebaseStorage();
+        // We return MORE than n candidates to give the transaction options if some are taken
+        const SAFETY_FACTOR = 5;
+        const REQUEST_COUNT = Math.max(n * SAFETY_FACTOR, 50);
+
+        // Filter locally known exclusions first
+        const candidates = allDialogues
+            .filter(d => !excludeIds.includes(d.entry_id))
+            .map(d => d.entry_id);
+
+        if (candidates.length === 0) {
+            throw new Error('No dialogues available to sample.');
         }
 
-        // Get all already assigned dialogues to avoid duplicates
-        const alreadyAssigned = await firebaseStorage.getAllAssignedDialogues();
+        // Shuffle
+        const shuffled = candidates.sort(() => Math.random() - 0.5);
 
-        // Filter out dialogues that are:
-        // 1. Already in the annotated_id_list.json
-        // 2. Already assigned to ongoing annotation tasks
-        // 3. In the excludeIds parameter
-        const availableDialogues = allDialogues.filter(d => {
-            const isAnnotated = isInAnnotatedList(d.entry_id);
-            const isAssigned = alreadyAssigned.includes(d.entry_id);
-            const isExcluded = excludeIds.includes(d.entry_id);
-
-            return !isAnnotated && !isAssigned && !isExcluded;
-        });
-
-        const annotatedCount = allDialogues.filter(d => isInAnnotatedList(d.entry_id)).length;
-        console.debug(`🎲 Sampling ${n} from ${availableDialogues.length} available dialogues (${alreadyAssigned.length} already assigned, ${annotatedCount} in annotated list)`);
-
-        if (availableDialogues.length < n) {
-            console.warn(`⚠️ Only ${availableDialogues.length} dialogues available, requested ${n}`);
-        }
-
-        if (availableDialogues.length === 0) {
-            throw new Error('No available dialogues to assign. All dialogues may be already assigned.');
-        }
-
-        // Shuffle and take first n
-        const shuffled = availableDialogues.sort(() => Math.random() - 0.5);
-        const sampled = shuffled.slice(0, Math.min(n, shuffled.length));
-
-        return sampled.map(d => d.entry_id);
+        // Return a large pool for the transaction to pick from
+        return shuffled.slice(0, REQUEST_COUNT);
     } catch (error) {
-        console.error('Error sampling dialogues:', error);
-        throw error; // Re-throw to let caller handle it
+        console.error('Error in sampleDialogues:', error);
+        throw error;
     }
 }
 
