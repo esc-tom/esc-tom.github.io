@@ -6946,20 +6946,25 @@ function setupInstructionListeners() {
         understoodBtn.addEventListener('click', instructionHandlers.understoodHandler);
     }
 
-    // Close on backdrop click
+    // Close on backdrop click (only when user is allowed to close without taking the tour)
     const modal = document.getElementById('instruction-modal');
-    if (modal) {
+    const instructionContent = modal ? modal.querySelector('.instruction-modal-content') : null;
+    if (modal && instructionContent) {
         // Remove existing listener if any
         if (instructionHandlers.backdropHandler) {
             modal.removeEventListener('click', instructionHandlers.backdropHandler);
         }
-        // Create and store new handler
+        // Treat any click outside the content box as "backdrop" (more reliable than e.target === modal)
         instructionHandlers.backdropHandler = (e) => {
-            if (e.target === modal) {
-                // Don't mark as seen when closing via backdrop - user should use the button
-                console.log('Instruction modal closed via backdrop - not marking as seen');
-                hideInstructionModal();
+            if (instructionContent.contains(e.target)) return; // click inside content, ignore
+            if (!modal.classList.contains('show')) return; // modal not visible
+            const hasSeenTour = localStorage.getItem(STORAGE_KEYS.TOUR_SEEN) === '1';
+            if (!hasSeenTour) {
+                e.preventDefault();
+                e.stopPropagation();
+                return;
             }
+            hideInstructionModal();
         };
         modal.addEventListener('click', instructionHandlers.backdropHandler);
     }
