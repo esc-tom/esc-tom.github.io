@@ -164,25 +164,25 @@ class FirebaseStorage {
             const userCredential = await this.auth.createUserWithEmailAndPassword(email, password);
             this.currentUser = userCredential.user;
 
-            // Perform Transactional Assignment
-            const assignedIds = await this.assignDialoguesTransactional(
-                customUserId,
-                5, // DIALOGUES_PER_USER (hardcoded or passed config)
-                candidateDialogues,
-                [] // excludeIds
-            );
+            // Determine assigned dialogues.
+            // We expect candidateDialogues to already be a random sample from the full pool;
+            // here we simply take the first N to use as this user's assignment.
+            const ASSIGN_COUNT = 5; // DIALOGUES_PER_USER
+            const pool = Array.isArray(candidateDialogues) ? candidateDialogues : [];
+            const assignedIds = pool.slice(0, ASSIGN_COUNT);
 
-            // Prepare base user document fields (assignment handled by transaction above/below? 
-            // Wait, transaction wrote 'assignedDialogues', but we need to set other metadata)
+            if (assignedIds.length === 0) {
+                console.warn('⚠️ No candidate dialogues provided to registerUser; user will start with 0 assignments');
+            } else if (assignedIds.length < ASSIGN_COUNT) {
+                console.warn(`⚠️ Only ${assignedIds.length} candidate dialogues available, expected ${ASSIGN_COUNT}`);
+            }
 
-            // NOTE: The transaction sets 'assignedDialogues'. We need to update with the rest of the profile.
-            // We use {merge: true} to not overwrite what the transaction wrote.
-
+            // Prepare base user document fields, including assigned dialogues
             const userDoc = {
                 username: username,
                 email: email,
                 authUid: this.currentUser.uid,
-                // assignedDialogues: assignedIds, // Already set by transaction
+                assignedDialogues: assignedIds,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 lastActiveAt: firebase.firestore.FieldValue.serverTimestamp() // vital for reclamation
             };
@@ -231,6 +231,49 @@ class FirebaseStorage {
     }
 
     /**
+     * Transactionally assign dialogues to a user
+     * Selects n dialogues from candidate pool and stores them in user document
+     * @param {string} customUserId - Custom user ID (Prolific ID or username)
+     * @param {number} n - Number of dialogues to assign
+     * @param {Array<string>} candidateDialogues - Pool of candidate dialogue IDs
+     * @param {Array<string>} excludeIds - Dialogue IDs to exclude
+     * @returns {Promise<Array<string>>} - Array of assigned dialogue IDs
+     */
+    async assignDialoguesTransactional(customUserId, n, candidateDialogues = [], excludeIds = []) {
+        try {
+            // Filter out excluded dialogues
+            const availableCandidates = candidateDialogues.filter(id => !excludeIds.includes(id));
+            
+            // Select exactly n dialogues from the pool
+            const assignedIds = availableCandidates.slice(0, n);
+            
+            if (assignedIds.length < n) {
+                console.warn(`⚠️ Only ${assignedIds.length} dialogues available, requested ${n}`);
+            }
+            
+            // Use a transaction to atomically set the assigned dialogues
+            await this.db.runTransaction(async (transaction) => {
+                const userRef = this.db.collection('users').doc(customUserId);
+                const userDoc = await transaction.get(userRef);
+                
+                // Set assigned dialogues in the user document
+                transaction.set(userRef, {
+                    assignedDialogues: assignedIds
+                }, { merge: true });
+            });
+            
+            console.log(`✅ Transactionally assigned ${assignedIds.length} dialogues to ${customUserId}`);
+            return assignedIds;
+        } catch (error) {
+            console.error('❌ Error in assignDialoguesTransactional:', error);
+            // Fallback: return first n dialogues from pool
+            const fallbackIds = candidateDialogues.filter(id => !excludeIds.includes(id)).slice(0, n);
+            console.warn(`⚠️ Using fallback assignment: ${fallbackIds.length} dialogues`);
+            return fallbackIds;
+        }
+    }
+
+    /**
      * Login existing user
      * @param {string} username - User's username
      * @param {string} password - User's password
@@ -244,16 +287,30 @@ class FirebaseStorage {
             const userCredential = await this.auth.signInWithEmailAndPassword(email, password);
             this.currentUser = userCredential.user;
 
-            // Look up user by custom ID (username is the custom ID for regular users)
-            const userDoc = await this.db.collection('users').doc(username).get();
+            // Look up user by custom ID.
+            // For regular users, document ID = username. For Prolific users, document ID = participantId (not prolific_xxx).
+            let userDoc = await this.db.collection('users').doc(username).get();
+            let customUserId = username;
+
+            if (!userDoc.exists && username.startsWith('prolific_')) {
+                // Prolific users are stored with doc ID = participantId
+                const participantId = username.slice('prolific_'.length);
+                const prolificDoc = await this.db.collection('users').doc(participantId).get();
+                if (prolificDoc.exists) {
+                    userDoc = prolificDoc;
+                    customUserId = participantId;
+                }
+            }
+
             if (!userDoc.exists) {
                 // Fallback: try to find by Auth UID (for backward compatibility)
                 const userDocByUid = await this.db.collection('users').doc(this.currentUser.uid).get();
                 if (userDocByUid.exists) {
                     console.log('User logged in (found by Auth UID):', username);
+                    this.setCustomUserId(userDocByUid.id);
                     return {
                         success: true,
-                        uid: username, // Return username as custom ID
+                        uid: userDocByUid.id,
                         authUid: this.currentUser.uid,
                         username: username
                     };
@@ -267,15 +324,15 @@ class FirebaseStorage {
                 console.warn('Auth UID mismatch - user may have been recreated');
             }
 
-            // Store custom user ID for this session
-            this.setCustomUserId(username);
+            // Store custom user ID for this session (participantId for Prolific, username for others)
+            this.setCustomUserId(customUserId);
 
-            console.log('User logged in:', username, `(custom ID: ${username})`);
+            console.log('User logged in:', username, `(custom ID: ${customUserId})`);
             return {
                 success: true,
-                uid: username, // Return custom ID (username)
+                uid: customUserId,
                 authUid: this.currentUser.uid,
-                username: username
+                username: userData.username || username
             };
         } catch (error) {
             console.error('❌ Login error:', error);
