@@ -148,30 +148,43 @@ class FirebaseStorage {
      * Creates email from username for Firebase Auth
      * @param {string} username - User's chosen username
      * @param {string} password - User's password (min 6 chars)
-     * @param {Array<string>} assignedDialogues - Array of dialogue IDs assigned to user
+     * @param {Array<string>} candidateDialogues - Array of CANDIDATE dialogue IDs (not yet assigned)
      * @param {Object} prolificData - Optional Prolific metadata {participantId, studyId, sessionId}
      * @returns {Promise<Object>} - {success, uid, message}
      */
-    async registerUser(username, password, assignedDialogues = [], prolificData = null) {
+    async registerUser(username, password, candidateDialogues = [], prolificData = null) {
         try {
             // Determine custom user ID: Prolific participant ID for Prolific users, username for regular users
             const customUserId = prolificData ? prolificData.participantId : username;
 
             // Create email from username (Firebase Auth requires email)
-            // Format: username@annotation.local
             const email = `${username}@annotation.local`;
 
             // Create user account with Firebase Auth
             const userCredential = await this.auth.createUserWithEmailAndPassword(email, password);
             this.currentUser = userCredential.user;
 
-            // Prepare user document
+            // Perform Transactional Assignment
+            const assignedIds = await this.assignDialoguesTransactional(
+                customUserId,
+                5, // DIALOGUES_PER_USER (hardcoded or passed config)
+                candidateDialogues,
+                [] // excludeIds
+            );
+
+            // Prepare base user document fields (assignment handled by transaction above/below? 
+            // Wait, transaction wrote 'assignedDialogues', but we need to set other metadata)
+
+            // NOTE: The transaction sets 'assignedDialogues'. We need to update with the rest of the profile.
+            // We use {merge: true} to not overwrite what the transaction wrote.
+
             const userDoc = {
                 username: username,
                 email: email,
-                authUid: this.currentUser.uid, // Store Auth UID for reference
-                assignedDialogues: assignedDialogues,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                authUid: this.currentUser.uid,
+                // assignedDialogues: assignedIds, // Already set by transaction
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                lastActiveAt: firebase.firestore.FieldValue.serverTimestamp() // vital for reclamation
             };
 
             // Add Prolific metadata if provided
@@ -180,27 +193,26 @@ class FirebaseStorage {
                     participantId: prolificData.participantId,
                     studyId: prolificData.studyId,
                     sessionId: prolificData.sessionId,
-                    password: password, // Store password for auto-login on return
-                    originalAssignedDialogues: assignedDialogues, // Store original assignment as backup
+                    password: password,
+                    originalAssignedDialogues: assignedIds,
                     registeredAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
-                console.log('👥 Prolific participant registered:', prolificData.participantId);
             }
 
-            // Store user profile in Firestore using custom ID as document ID
-            await this.db.collection('users').doc(customUserId).set(userDoc);
+            // Store user profile
+            await this.db.collection('users').doc(customUserId).set(userDoc, { merge: true });
 
             // Store custom user ID for this session
             this.setCustomUserId(customUserId);
 
             console.log('User registered:', username, `(custom ID: ${customUserId})`);
-            console.log('📋 Assigned dialogues:', assignedDialogues.length);
+            console.log('📋 Assigned dialogues:', assignedIds.length);
             return {
                 success: true,
-                uid: customUserId, // Return custom ID instead of Auth UID
-                authUid: this.currentUser.uid, // Also return Auth UID for reference
+                uid: customUserId,
+                authUid: this.currentUser.uid,
                 username: username,
-                assignedDialogues: assignedDialogues
+                assignedDialogues: assignedIds
             };
         } catch (error) {
             console.error('❌ Registration error:', error);
